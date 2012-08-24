@@ -1,0 +1,1128 @@
+unit AutoBot1U;
+
+
+interface
+
+uses
+  DBTables, Grids, ComObj, SysUtils, Variants, Dialogs, Controls, Graphics,
+  Windows, ListPriceGoodsU;
+
+const
+  cAddress = 1;
+  cResponsible = 1;
+  cRespTransact = 1;
+  cRespPartner = 5;
+  cRespAddress = 1;
+  cPartner = 2;
+  cPartnerWe = 1;
+  cAddrPartner = 3;
+  cRetPeriod = 14;
+  cDefTypeCheque = 1;
+  cDefCoeff = 100;
+  cIntervalSale = 3;
+
+type
+  cTypeGoods = (tCarpet = 1, tElse, tTrack, tPicture, tMetal);
+  TTypeCheque = (chSale = 1, chRetSale, chBuyAtSupp, chRetSupp, chImpOfXsl,
+                  chFromVirtual, chOrder, chRefOrder = 10, chExpenses, chMonOperat,
+                  chInternalMov, chRunOrder, chReassessment, chSalePeresorting);
+
+  TAutoBot1 = class
+  private
+    function GetAddress: Integer;
+    function GetAddrPartner: Integer;
+    function GetDefCoeff: Integer;
+    function GetDefTypeCheque: Integer;
+    function GetPartner: Integer;
+    function GetResponsible: Integer;
+    function GetRespPartner: Integer;
+    function GetRespTransact: Integer;
+    function GetRetPeriod: Integer;
+    function GetIntervalSale: Integer;
+    //function GetTypeGoods:
+  public
+    //procedure Add_Xls_To_Table(table: TTable);
+    property Address: Integer read GetAddress;
+    property AddrPartner: Integer read GetAddrPartner;
+    property defCoeff: Integer read GetDefCoeff;
+    property defTypeCheque: Integer read GetDefTypeCheque;
+    property Partner: Integer read GetPartner;
+    property Responsible: Integer read GetResponsible;
+    property RespPartner: Integer read GetRespPartner;
+    property RespTransact: Integer read GetRespTransact;
+    property RetPeriod: Integer read GetRetPeriod;
+    property IntervalSale: Integer read GetIntervalSale;
+  end;
+
+function Address: Integer;
+function RespTransact: Integer;
+function MmToMetre(mm: string): string;
+{ TODO 3 -oFloatToStrP -cquQuery : заменить все запросы с вещественными функцией FloatToStrP }
+function FloatToStrP(r: Real): string;
+function ifStrToCurr(s: string; var curr: Currency): Boolean;
+function ifHardStrToFloat(s: string; var r: Real): Boolean; overload;
+function ifHardStrToFloat(s: string): Boolean; overload;
+function ifHardStrToInt(s: string; var i: Integer): Boolean; overload;
+function ifHardStrToInt(s: string): Boolean; overload;
+function quSummForField(var SUM: Integer; sField, sTable, ifTerm: string; Query: TQuery): Boolean; overload;
+function quSummForField(var SUM: Integer; sField, sTable, ifTerm: string): Boolean; overload;
+function quSummForField(var SUM: Integer; sField, sTable: string): Boolean; overload;
+function quCountForField(var COUNT: Integer; sField, sTable, ifTerm: string; Query: TQuery): Boolean; overload;
+function quCountForField(var COUNT: Integer; sField, sTable, ifTerm: string): Boolean; overload;
+function quLastCount(var nSquareTrack: Real; var nCarpet, nElse, nTrack, nPicture, nMetal: Integer;
+    var nMoney, nValGoods: Currency; address: Integer; befoDate: string):Boolean; overload;
+function quLastCount(var nSquareTrack: Real; var nCarpet, nElse, nTrack, nPicture, nMetal: Integer;
+    var nMoney, nValGoods: Currency; address: Integer):Boolean; overload;
+//function quLastSqTrack: Real;
+//function quLastCarpet: Integer;
+//function quLastElse: Integer;
+//function quLastTrack: Integer;
+//function quLastPicture: Integer;
+//function quLastMetal: Integer;
+function quQuery(const QUERY: string): Variant;
+function TESTALL(var s1, s2: string): Boolean;
+procedure AutoSizeGridColumn(Grid: TStringGrid; column, min, max: Integer);
+procedure To_Xsl(SG: TStringGrid; const FileName: string);
+function Xls_To_StringGrid(AGrid: TStringGrid; AXLSFile: string;
+      iPage: Integer = 1; RowBeg: Integer = 1): Boolean;
+function RetPeriod: Integer;
+function DelEmptyRowColFromGrid(AGrid: TStringGrid): Boolean;
+function IntervalSale: Integer;
+function DefRespons: Integer;
+function LastDate: TDate;
+
+// Обновляем MiniReport
+function MrEnterGoods(d: TDate; TermIns: string; sMoney, sValGoods: Currency; sCarpet, sElse, sMetal, sPicture, sTrack: Integer; sSqTrack: Real): Boolean;
+function MrOutputGoods(d: TDate; TermIns: string; sMoney, sValGoods: Currency; sCarpet, sElse, sMetal, sPicture, sTrack: Integer; sSqTrack: Real): Boolean;
+function NewMiniReportFromLast(D: TDate): Boolean;
+function quQuerySet(const Q: string): Boolean;
+function PersOldNew(const Old, New: Currency): Real;
+function LighterColor(const Color: TColor; Percent: Integer): TColor;
+
+implementation
+
+uses dmCheque, CarpetFieldU;
+
+type
+  THackStringGrid = class(TStringGrid)
+  end;
+
+function DelEmptyRowColFromGrid(AGrid: TStringGrid): Boolean;
+var
+  iRow,
+  iCol,
+  rtmp,
+  ctmp,
+  i: Integer;
+  ifEmpty: Boolean;
+begin
+  Result := False;
+  with AGrid do
+  begin
+    // удаляем пустые СТРОКИ
+    iRow := 0;
+    while iRow < RowCount do
+      begin
+        if RowCount < 2 then
+          Break;
+
+        ifEmpty := True;
+        for i := 0 to ColCount - 1 do
+          if Cells[i, iRow] <> '' then
+            ifEmpty := False;
+
+        // если нет пустых строк то пропускаем
+        if not ifEmpty then
+          begin
+            Inc(iRow);
+            Continue;
+          end;
+
+
+
+        rtmp := Row;
+        THackStringGrid(AGrid).DeleteRow(iRow);
+        if rtmp >= RowCount - 1 then
+          Row := rtmp - 1
+        else
+          Row := rtmp;
+
+        Result := True;
+      end;
+
+    // удаляем пустые КОЛОНКИ
+    iCol := 1;
+    while iCol < ColCount do
+      begin
+        if ColCount < 2 then
+          Break;
+
+        ifEmpty := True;
+        for i := 1 to RowCount - 1 do
+            if Cells[iCol, i] <> '' then
+              ifEmpty := False;
+
+        // если нет пустых строк то пропускаем
+        if not ifEmpty then
+          begin
+            Inc(iCol);
+            Continue;
+          end;
+
+
+        ctmp := Col;
+        THackStringGrid(AGrid).DeleteColumn(iCol);
+        if ctmp >= ColCount - 1 then
+          Col := ctmp - 1
+        else
+          Col := ctmp;
+
+        Result := True;
+      end;
+  end;
+  //if Result then
+    //DelEmptyRowColFromGrid(AGrid);
+end;
+
+procedure AutoSizeGridColumn(Grid: TStringGrid; column, min, max: Integer);
+  { Set for max and min some minimal/maximial Values}
+  { Bei max and min kann eine Minimal- resp. Maximalbreite angegeben werden}
+var
+  i: Integer;
+  temp: Integer;
+  tempmax: Integer;
+begin
+  tempmax := 0;
+  for i := 0 to (Grid.RowCount - 1) do
+  begin
+    temp := Grid.Canvas.TextWidth(Grid.cells[column, i]);
+    if temp > tempmax then tempmax := temp;
+    if tempmax > max then
+    begin
+      tempmax := max;
+      break;
+    end;
+  end;
+  if tempmax < min then tempmax := min;
+  Grid.ColWidths[column] := tempmax + Grid.GridLineWidth + 3;
+end;
+
+procedure To_Xsl(SG: TStringGrid; const FileName: string);
+//const
+//  FileName = 'c:\1.xls';
+  //ColCount = 5; // 1 - название 2 - тип 3 - дл 4 ш цена м.кв. 5 - цена
+
+  function RefToCell(const ARow, ACol: Integer): string;
+  begin
+    Result := Chr(Ord('A') + ACol - 1) + IntToStr(ARow);
+  end;
+var
+  XL, XArr, XLWB: Variant;
+  i: Integer;
+  j: Integer;
+begin
+  {не забудьте включить ComObj в список используемых модулей}
+  // Создаем массив элементов, полученных в результате запроса
+  XArr := VarArrayCreate([1, SG.ColCount], varVariant);
+  XL := CreateOLEObject('Excel.Application'); // Создание OLE объекта
+
+  // Отключаем реакцию Excel на события, чтобы ускорить вывод информации
+  XL.Application.EnableEvents := false;
+
+  XLWB := XL.WorkBooks.add;
+
+  //XL.visible := true;
+
+  // цена м.кв.
+  //XL.Columns[4].NumberFormat := '@';
+
+  // цена
+  //XL.Columns[3].NumberFormat := '@';
+
+  with SG do
+  for i := 1 to RowCount do
+    begin
+      for j := 1 to ColCount do
+        XArr[j] := Cells[j - 1, i - 1];
+      XL.Cells[i, ColCount - 1].NumberFormat := '# ##0,00';
+      XL.Cells[i, ColCount].NumberFormat := '# ##0,00';
+      XL.Range[RefToCell(i, 1), RefToCell(i, ColCount)].Value := XArr;
+    end;
+
+
+  XL.selection.Columns.AutoFit;
+  XL.Range['A1', 'A1'].select;
+
+  if not VarIsEmpty(XL) then
+    try
+      XL.DisplayAlerts := False;
+      // 56 - xlExcel8
+      XL.Workbooks[1].SaveAs(FileName, 56);
+    finally
+      XL.Quit;
+      XL := Unassigned;
+      XArr := Unassigned;
+      //Caption := 'Готово';
+    end;
+
+  //CloseWorkBook('D:\qwerty.xls');
+end;
+
+function Xls_To_StringGrid(AGrid: TStringGrid; AXLSFile: string;
+      iPage: Integer; RowBeg: Integer): Boolean;
+const
+  xlCellTypeLastCell = $0000000B;
+var
+  XLApp, Sheet: OLEVariant;
+  RangeMatrix: Variant;
+  x, y, k, r: Integer;
+begin
+  Result := False;
+  if AXLSFile = '' then
+    Exit;
+
+  //Screen.Cursor:=crAppStart;
+  XLApp := CreateOleObject('Excel.Application');
+  try
+     XLApp.Visible := False;
+     XLApp.Workbooks.Open(AXLSFile);
+     Sheet := XLApp.Workbooks[ExtractFileName(AXLSFile)].WorkSheets[iPage];
+     Sheet.Activate;
+     Sheet.Cells.SpecialCells(xlCellTypeLastCell, EmptyParam).Activate;
+     x := XLApp.ActiveCell.Row;
+     y := XLApp.ActiveCell.Column;
+     AGrid.RowCount := RowBeg + x;
+     AGrid.ColCount := y;
+     RangeMatrix := XLApp.Range['A1', XLApp.Cells.Item[X, Y]].Value;
+     k := 1;
+     repeat
+       for r := 1 to y do
+        AGrid.Cells[(r - 1), RowBeg + (k - 1)] := RangeMatrix[K, R];
+       AGrid.Refresh;
+       Inc(k, 1);
+       AGrid.RowCount := RowBeg + k + 1;
+     until k > x;
+     RangeMatrix := Unassigned;
+
+     for x := 0 to AGrid.ColCount - 1 do
+      AutoSizeGridColumn(AGrid, x, 20, 150);
+     Result := True;
+  finally
+     if not VarIsEmpty(XLApp) then
+     begin
+       XLApp.Quit;
+       XLAPP := Unassigned;
+       Sheet := Unassigned;
+       //Screen.Cursor:=crDefault;
+     end;
+  end;
+
+end;
+
+{ TAutoBot1 }
+
+function TAutoBot1.GetAddress: Integer;
+begin
+  Result := cAddress;
+end;
+
+function TAutoBot1.GetResponsible: Integer;
+begin
+  Result := cResponsible
+end;
+
+function TAutoBot1.GetRespTransact: Integer;
+begin
+  Result := cRespTransact
+end;
+
+
+function TAutoBot1.GetRetPeriod: Integer;
+begin
+  Result := cRetPeriod
+end;
+
+function TAutoBot1.GetDefTypeCheque: Integer;
+begin
+  Result := cDefTypeCheque
+end;
+
+function TAutoBot1.GetDefCoeff: Integer;
+begin
+  Result := cDefCoeff
+end;
+
+function TAutoBot1.GetPartner: Integer;
+begin
+  Result := cPartner;
+end;
+
+function TAutoBot1.GetRespPartner: Integer;
+begin
+  Result := cRespPartner
+end;
+
+function TAutoBot1.GetAddrPartner: Integer;
+begin
+  Result := cAddrPartner;
+end;
+
+// функции
+function MmToMetre(mm: string): string;
+begin
+  Result := mm;
+  if (Result = null) or (Result = '') then
+    Exit;
+  while Length(Result) < 4 do
+    Insert('0', Result, 1);
+  if Length(Result) > 3 then
+    Insert(',', Result, Length(Result) - 2);
+  if Length(Result) > 3 then
+    Delete(Result, Length(Result), 1);
+end;
+
+function FloatToStrP(r: Real): string;
+var
+  i: Integer;
+begin
+  Result := FloatToStr(r);
+  i := Pos(',', Result);
+  if i > 0 then
+    Result[i] := '.';
+end;
+
+function ifStrToCurr(s: string; var curr: Currency): Boolean;
+var
+  i: Integer;
+  ifComa: Boolean;
+  rTmp: Real;
+begin
+  Result := False;
+  i := Length(s);
+  ifComa := False;
+  while i > 0 do
+  begin
+    case s[i] of
+      '0'..'9', '.':
+        ;
+      ',':
+        begin
+          if ifComa then
+            Delete(s, i, 1)
+          else
+            s[i] := '.';
+          ifComa := True;
+        end;
+    else
+      Delete(s, i, 1);
+    end;
+    Dec(i);
+  end;
+
+  if Length(s) > 0 then
+    if (s[Length(s)] = '.') or (s[Length(s)] = ',') then
+      Delete(s, Length(s), 1);
+  Val(s, rTmp, i);
+  curr := rTmp;
+  if i = 0 then
+    Result := True;
+end;
+
+function ifHardStrToFloat(s: string; var r: Real): Boolean;
+var
+  code: Integer;
+begin
+  Result := False;
+  r := 0;
+  if s = '' then
+    Exit;
+  if Pos(',', s) <> 0 then
+    s[Pos(',', s)] := '.';
+  Val(s, r, code);
+  if (code = 0) then
+    Result := True;
+end;
+
+function ifHardStrToFloat(s: string): Boolean;
+var
+  r: Real;
+begin
+  Result := ifHardStrToFloat(s, r)
+end;
+
+function ifHardStrToInt(s: string; var i: Integer): Boolean;
+var
+  r: Real;
+begin
+  Result := False;
+  if ifHardStrToFloat(s, r) then
+    if r = Int(r) then
+      begin
+        i := Trunc(r);
+        Result := True;
+      end;
+end;
+
+function ifHardStrToInt(s: string): Boolean;
+var
+  i: Integer;
+begin
+  Result := ifHardStrToInt(s, i)
+end;  
+
+function quSummForField(var SUM: Integer; sField, sTable, ifTerm: string; Query: TQuery): Boolean;
+begin
+  SUM := 0;
+  Result := False;
+  try
+  with DM, Query do
+  begin
+    Close;
+    SQL.Clear;
+    SQL.Add('SELECT SUM (' + sField + ')');
+    SQL.Add('FROM ' + sTable);
+    if ifTerm <> '' then
+      SQL.Add('WHERE ' + ifTerm);
+    Open;
+    SUM := Fields[0].AsInteger;
+  end;
+    Result := True;
+  except
+
+  end;
+end;
+
+function quSummForField(var SUM: Integer; sField, sTable, ifTerm: string): Boolean;
+begin
+  Result := quSummForField(SUM, sField, sTable, ifTerm, DM.qryTestGoods)
+end;
+
+function quSummForField(var SUM: Integer; sField, sTable: string): Boolean;
+begin
+  Result := quSummForField(SUM, sField, sTable, '', DM.qryTestGoods)
+end;  
+
+function quCountForField(var COUNT: Integer; sField, sTable, ifTerm: string; Query: TQuery): Boolean;
+begin
+  COUNT := 0;
+  Result := False;
+  try
+    with DM, Query do
+    begin
+      Close;
+      SQL.Clear;
+      SQL.Add('SELECT COUNT (' + sField + ')');
+      SQL.Add('FROM ' + sTable);
+      if ifTerm <> '' then
+        SQL.Add('WHERE ' + ifTerm);
+      Open;
+      COUNT := Fields[0].AsInteger;
+    end;
+    Result := True;
+  except
+
+  end;
+end;
+
+function quCountForField(var COUNT: Integer; sField, sTable, ifTerm: string): Boolean;
+begin
+  Result := quCountForField(COUNT, sField, sTable, ifTerm, DM.qryTestGoods)
+end;
+
+function quLastCount(var nSquareTrack: Real; var nCarpet, nElse, nTrack, nPicture, nMetal: Integer;
+    var nMoney, nValGoods: Currency; address: Integer; befoDate: string):Boolean;
+begin
+  Result := False;
+  nCarpet := 0;
+  nElse := 0;
+  nTrack := 0;
+  nPicture := 0;
+  nMetal := 0;
+  nMoney := 0;
+  nSquareTrack := 0;
+  nValGoods := 0;
+  with DM, qryTestGoods do
+  begin
+    Close;
+    SQL.Clear;
+    SQL.Add('SELECT MrCarped, MrElse, MrTrack, MrPicture, MrMetal, MrMoney, MrSqTrack, MrValueGoods');
+    SQL.Add('FROM MiniReport ');
+    SQL.Add('WHERE MrAddressPartnerID = ' + IntToStr(address) + ' AND MrDate = ');
+    SQL.Add('(SELECT MAX(MrDate) ');
+    SQL.Add('FROM MiniReport ');
+    SQL.Add('WHERE MrAddressPartnerID = ' + IntToStr(address));
+    if befoDate <> '' then
+      SQL.Add(' AND MrDate < "' + befoDate + '"');
+    SQL.Add(' )');
+    Open;
+    { TODO 2 -oЯ  -cquLastCount : Добавить проверку на пустое значение или заменить quCount и
+т.д. quQuery}
+    if VarIsNull(Fields[0].Value) then
+      Exit;
+    nCarpet := Fields[0].AsInteger;
+    nElse := Fields[1].AsInteger;
+    nTrack := Fields[2].AsInteger;
+    nPicture := Fields[3].AsInteger;
+    nMetal := Fields[4].AsInteger;
+    nMoney := Fields[5].AsCurrency;
+    nSquareTrack := Fields[6].AsFloat;
+    nValGoods := Fields[7].AsFloat;
+  end;
+  Result := True;
+end;
+
+function quLastCount(var nSquareTrack: Real; var nCarpet, nElse, nTrack, nPicture, nMetal: Integer;
+    var nMoney, nValGoods: Currency; address: Integer):Boolean;
+begin
+  Result := quLastCount(nSquareTrack, nCarpet, nElse, nTrack, nPicture, nMetal, nMoney, nValGoods, address, '')
+end;
+
+function quQuery(const QUERY: string): Variant;
+  function ifDataType(): Boolean;
+  begin
+    Result := False;
+    if  (Pos('delete', LowerCase(QUERY)) > 0) or
+        (Pos('update', LowerCase(QUERY)) > 0) or
+        (Pos('insert', LowerCase(QUERY)) > 0)
+        then
+      Result := True;
+  end;
+var
+  i: Integer;
+begin
+  Sleep(50);
+  Result := null;
+  with DM, qryTestGoods do
+  begin
+    Close;
+    SQL.Clear;
+    SQL.Add(QUERY);
+    if ifDataType then
+      begin
+        ExecSQL;
+        Exit;
+      end;
+    Open;
+    if Fields.Count > 1 then
+      begin
+        if VarIsNull(Fields[0].AsVariant) then
+          Exit;
+        Result := VarArrayCreate([1, Fields.Count], varVariant);
+        for i := VarArrayLowBound(Result, 1) to VarArrayHighBound(Result, 1) do
+          Result[i] := Fields[i - 1].AsVariant
+      end
+    else
+      Result := Fields[0].AsVariant
+  end;
+end;
+
+function quQuerySet(const Q: string): Boolean;
+  function ifDataType(): Boolean;
+  begin
+    Result := False;
+    if  (Pos('delete', LowerCase(Q)) > 0) or
+        (Pos('update', LowerCase(Q)) > 0) or
+        (Pos('insert', LowerCase(Q)) > 0)
+        then
+      Result := True;
+  end;
+begin
+  Result := False;
+  with DM, qrySet do
+  try
+    Close;
+    SQL.Clear;
+    SQL.Add(Q);
+    if ifDataType then
+      begin
+        ExecSQL;
+        Exit;
+      end;
+    Open;
+    Result := True;
+  except
+  end;     
+end;  
+
+                  { TODO 4 -oTESTALL -cINS_BEFO_DATE : ДОБАВИТЬ дату для вставки продажи до последнего дня продажи }
+function TESTALL(var s1, s2: string): Boolean;
+var
+  sum,
+  sCarpet, sElse, sTrack, sPicture, sMetal,
+  sumDetail, sCarpetDetail, sElseDetail,
+  sTrackDetail, sPictureDetail, sMetalDetail: Integer;
+  sMoney,
+  sMoneyDetail,
+  sMoneyOnCheque,
+  sValueGoods,
+  crFinDelta: Currency;
+  sSquareTrack,
+  sSquareTrackFromMiniReport: Real;
+  Auto: TAutoBot1;
+  vResult,
+  dMR,
+  dGW,
+  dCh: Variant;
+  
+  // Дата MiniReport, Cheque, GraphWork, MoveMoney
+begin
+  Result := True;
+  Auto := TAutoBot1.Create();
+  sum := 0;
+  sCarpet := 0;
+  sElse := 0;
+  sTrack := 0;
+  sPicture := 0;
+  sMetal := 0;
+  sMoney := 0;
+  sMoneyOnCheque := 0;
+  sSquareTrackFromMiniReport := 0;
+  sValueGoods := 0;
+
+  sumDetail := 0;
+  sCarpetDetail := 0;
+  sElseDetail := 0;
+  sTrackDetail := 0;
+  sPictureDetail := 0;
+  sMetalDetail := 0;
+  crFinDelta := 0;
+
+  dMR := quQuery('SELECT MAX(MrDate) FROM MiniReport WHERE MrAddressPartnerID = ' + IntToStr(Address));
+  dCh := quQuery('SELECT MAX(CDate) FROM CHEQUE WHERE CAddress = ' + IntToStr(Address));
+  dGW := quQuery('SELECT MAX(GWDate) FROM GraphWork WHERE GWAddress = ' + IntToStr(Address));
+
+  if (dMR <> dCh) or (dCh <> dGW) then
+  begin
+    MessageDlg('Несопадение дат! ' + #13 + 'MrDate: ' + VarToStr(dMR) + #13 +
+      'CDate: ' + VarToStr(dCh) + #13 +
+      'GWDate: ' + VarToStr(dGW),
+      mtError, [mbOK], 0);
+    Result := False
+  end;
+
+  quSummForField(sum, 'GCount', 'Goods');
+  quSummForField(sumDetail, 'DCount', 'DetailGoods');
+
+  if sum <> sumDetail then
+  begin
+    MessageDlg('Кол-во тов. в табл. GOODS: ' + IntToStr(sum) + 'ед. отличается от ' +
+      'кол-ва в табл. DetailGoods: ' + IntToStr(sumDetail) + 'ед.',
+      mtError, [mbOK], 0);
+    Result := False
+  end;
+
+
+  sum := 0;
+  sumDetail := 0;
+  with DM, tbGoods do
+  begin
+    if Filtered then
+      Filtered := False;
+    First;
+    while not Eof do
+    begin
+      if (intgrfldGoodsGType.Value = Integer(tTrack)) and
+          (intgrfldGoodsGCount.Value <> 0) then
+        Inc(sum)
+      else
+        sum := sum + intgrfldGoodsGCount.Value;
+      Next;
+    end;
+  end;
+
+  DM.tbPersonel.First;
+  with DM, tbPersonel do
+    while not Eof do
+    begin
+      crFinDelta := crFinDelta + crncyfldPersonelPFinDelta.Value;
+      Next;
+    end;
+
+  vResult := quQuery('SELECT SUM(CPayedSum) FROM CHEQUE');
+  if VarIsNull(vResult) then
+    vResult := 0;
+
+  if vResult <> crFinDelta then
+    begin
+      ShowMessage('Дельта партнера не равна сумме доходов');
+      Result := False;
+    end;
+
+  vResult := quQuery('SELECT SUM(MMoney) FROM Cheque INNER JOIN Movemoney  ON  (ChequeID = MmChequeID) WHERE  CAddress = ' + IntToStr(Auto.Address));
+  if vResult <> Null then
+    sMoney := vResult
+  else
+    sMoney := 0;
+
+  // деньги в tbCheque
+  with DM, tbCheque, fmCheque.dbgrd1.DataSource.DataSet  do
+  begin
+    DisableControls;
+    if Filtered then
+      Filtered := False;
+    First;
+    sMoneyDetail := 0;
+    while not Eof do
+    begin
+      if intgrfldChequeCAddress.Value = Auto.Address then
+        sMoneyDetail := sMoneyDetail + crncyfldChequeCPayedSum.Value;
+      sMoneyOnCheque := sMoneyOnCheque + crncyfldChequeCPayedSum.Value;
+      Next;
+    end;
+    EnableControls;
+  end;
+
+  if sMoney <> sMoneyOnCheque then
+  begin
+    MessageDlg('Касса в табл. MoveMoney: ' + CurrToStr(sMoney) + ' гр. отличается от ' +
+      ' кассы в табл. CHEQUE: ' + CurrToStr(sMoneyDetail) + ' гр.',
+      mtError, [mbOK], 0);
+    Result := False
+  end;
+
+  if not quSummForField(sCarpet, 'GCount', 'Goods',
+      'GType = ' + IntToStr(Integer(tCarpet))) then
+    Result := False;
+  quSummForField(sElse, 'GCount', 'GOODS',
+    'GType = ' + IntToStr(Integer(tElse)));
+  quCountForField(sTrack, 'GCount', 'GOODS',
+    'GType = ' + IntToStr(Integer(tTrack)) + ' AND GCount <> 0');
+  quSummForField(sPicture, 'GCount', 'GOODS',
+    'GType = ' + IntToStr(Integer(tPicture)));
+  quSummForField(sMetal, 'GCount', 'GOODS',
+    'GType = ' + IntToStr(Integer(tMetal)));
+
+  if sum <> (sCarpet + sElse + sTrack + sPicture + sMetal) then
+  begin
+    MessageDlg('Табл. "virtual": неизвестный тип товара', mtError, [mbOK], 0);
+    Result := False
+  end;
+
+
+  quSummForField(sCarpetDetail, 'DCount', 'Detailgoods INNER JOIN Goods' +
+	  ' ON  (GoodsID = DGoods)', 'GType = ' + IntToStr(Integer(tCarpet)));
+  quSummForField(sElseDetail, 'DCount', 'Detailgoods INNER JOIN Goods' +
+	  ' ON  (GoodsID = DGoods)', 'GType = ' + IntToStr(Integer(tElse)));
+  quCountForField(sTrackDetail, 'DCount', 'Detailgoods INNER JOIN Goods' +
+	  ' ON  (GoodsID = DGoods)', 'GType = ' + IntToStr(Integer(tTrack)) + ' AND GCount <> 0');
+  quSummForField(sPictureDetail, 'DCount', 'Detailgoods INNER JOIN Goods' +
+	  ' ON  (GoodsID = DGoods)', 'GType = ' + IntToStr(Integer(tPicture)));
+  quSummForField(sMetalDetail, 'DCount', 'Detailgoods INNER JOIN Goods' +
+	  ' ON  (GoodsID = DGoods)', 'GType = ' + IntToStr(Integer(tMetal)));
+
+  if sCarpet <> sCarpetDetail then
+  begin
+    MessageDlg('Кол-во ковров в табл. GOODS: ' + IntToStr(sCarpet) + ' ед. отличается от ' +
+      'кол-ва в табл. DetailGoods: ' + IntToStr(sCarpetDetail) + ' ед.',
+      mtError, [mbOK], 0);
+    Result := False;
+  end;
+  if sElse <> sElseDetail then
+  begin
+    MessageDlg('Кол-во разного в табл. GOODS: ' + IntToStr(sElse) + ' ед. отличается от ' +
+      'кол-ва в табл. DetailGoods: ' + IntToStr(sElseDetail) + ' ед.',
+      mtError, [mbOK], 0);
+    Result := False;
+  end;
+
+  if sTrack <> sTrackDetail then
+  begin
+    MessageDlg('Кол-во дорожек в табл. GOODS: ' + IntToStr(sTrack) + ' рулонов. отличается от ' +
+      'кол-ва в табл. DetailGoods: ' + IntToStr(sTrackDetail) + ' рулонов.',
+      mtError, [mbOK], 0);
+    Result := False;
+  end;
+
+  if sPicture <> sPictureDetail then
+  begin
+    MessageDlg('Кол-во картин в табл. GOODS: ' + IntToStr(sPicture) + ' ед. отличается от ' +
+      'кол-ва в табл. DetailGoods: ' + IntToStr(sPictureDetail) + ' ед.',
+      mtError, [mbOK], 0);
+    Result := False;
+  end;
+
+  if sMetal <> sMetalDetail then
+  begin
+    MessageDlg('Кол-во металла в табл. GOODS: ' + IntToStr(sMetal) + ' ед. отличается от ' +
+      'кол-ва в табл. DetailGoods: ' + IntToStr(sMetalDetail) + ' ед.',
+      mtError, [mbOK], 0);
+    Result := False;
+  end;
+
+
+  // сравниваем данные по типу для конкретного аддреса
+  // берем данные из таблицы MiniReport
+  quLastCount(sSquareTrackFromMiniReport, sCarpet, sElse, sTrack, sPicture, sMetal, sMoney, sValueGoods, Address);
+  // берем данные из таблицы DetailGoods
+  quSummForField(sCarpetDetail, 'DCount', 'Detailgoods INNER JOIN Goods' +
+	  ' ON  (GoodsID = DGoods)', 'GType = ' + IntToStr(Integer(tCarpet)) +
+    ' AND DAddrPartner = ' + IntToStr(Auto.Address));
+  quSummForField(sElseDetail, 'DCount', 'Detailgoods INNER JOIN Goods' +
+	  ' ON  (GoodsID = DGoods)', 'GType = ' + IntToStr(Integer(tElse)) +
+    ' AND DAddrPartner = ' + IntToStr(Auto.Address));
+  quCountForField(sTrackDetail, 'DCount', 'Detailgoods INNER JOIN Goods' +
+	  ' ON  (GoodsID = DGoods)', 'GType = ' + IntToStr(Integer(tTrack)) + ' AND GCount <> 0' +
+    ' AND DAddrPartner = ' + IntToStr(Auto.Address));
+  quSummForField(sPictureDetail, 'DCount', 'Detailgoods INNER JOIN Goods' +
+	  ' ON  (GoodsID = DGoods)', 'GType = ' + IntToStr(Integer(tPicture)) +
+    ' AND DAddrPartner = ' + IntToStr(Auto.Address));
+  quSummForField(sMetalDetail, 'DCount', 'Detailgoods INNER JOIN Goods' +
+	  ' ON  (GoodsID = DGoods)', 'GType = ' + IntToStr(Integer(tMetal)) +
+    ' AND DAddrPartner = ' + IntToStr(Auto.Address));
+
+  // деньги подсчет в табл tbAddressPartner
+  //sMoneyDetail := quMoney(Auto.Address);
+
+  if sCarpet <> sCarpetDetail then
+  begin
+    MessageDlg('Кол-во ковров в табл. MiniReport: ' + IntToStr(sCarpet) + 'ед. отличается от ' +
+      'кол-ва в табл. DetailGoods: ' + IntToStr(sCarpetDetail) + 'ед.',
+      mtError, [mbOK], 0);
+    Result := False;
+  end;
+
+  if sElse <> sElseDetail then
+  begin
+    MessageDlg('Кол-во разного в табл. MiniReport: ' + IntToStr(sElse) + ' ед. отличается от ' +
+      'кол-ва в табл. DetailGoods: ' + IntToStr(sElseDetail) + ' ед.',
+      mtError, [mbOK], 0);
+    Result := False
+  end;
+
+  if sTrack <> sTrackDetail then
+  begin
+    MessageDlg('Кол-во дорожек в табл. MiniReport: ' + IntToStr(sTrack) + ' рулонов. отличается от ' +
+      'кол-ва в табл. DetailGoods: ' + IntToStr(sTrackDetail) + ' рулонов.',
+      mtError, [mbOK], 0);
+    Result := False
+  end;
+
+  if sPicture <> sPictureDetail then
+  begin
+    MessageDlg('Кол-во картин в табл. MiniReport: ' + IntToStr(sPicture) + ' ед. отличается от ' +
+      'кол-ва в табл. DetailGoods: ' + IntToStr(sPictureDetail) + 'рулонов.',
+      mtError, [mbOK], 0);
+    Result := False
+  end;
+
+  if sMetal <> sMetalDetail then
+  begin
+    MessageDlg('Кол-во металла в табл. MiniReport: ' + IntToStr(sMetal) + ' ед. отличается от ' +
+      'кол-ва в табл. DetailGoods: ' + IntToStr(sMetalDetail) + ' ед.',
+      mtError, [mbOK], 0);
+    Result := False
+  end;
+
+  if sMoney <> sMoneyDetail then
+  begin
+    MessageDlg('Касса в табл. MiniReport: ' + CurrToStr(sMoney) + ' гр. отличается от ' +
+      ' кассы в табл. Cheque: ' + CurrToStr(sMoneyDetail) + ' гр.',
+      mtError, [mbOK], 0);
+    Result := False
+  end;
+
+  // считаем м.кв.
+  vResult := quQuery('SELECT SUM(GWidth * DCount) FROM Detailgoods INNER JOIN Goods ON  (GoodsID = DGoods) WHERE GType = 3 AND DCount <> 0 AND DAddrPartner = ' + IntToStr(Auto.Address));
+  if vResult <> Null then
+    sSquareTrack := vResult / 1000000
+  else
+    sSquareTrack := 0;
+
+  if FloatToStr(sSquareTrack) <> FloatToStr(sSquareTrackFromMiniReport) then
+  begin
+    MessageDlg('Дорожки в табл. MiniReport: ' + FloatToStr(sSquareTrackFromMiniReport) + ' м.кв. отличается от ' +
+      ' дорожки в табл. DetailGoods: ' + FloatToStr(sSquareTrack) + ' м.кв.',
+      mtError, [mbOK], 0);
+    Result := False
+  end;
+
+  // оценка товара
+  vResult := quQuery('SELECT SUM(DPriceCoeff * DCount) FROM DetailGoods WHERE DAddrPartner = ' + IntToStr(Address));
+  if VarIsNull(vResult) then
+    begin
+      vResult := 0;
+    end;
+
+  if vResult <> sValueGoods then
+    begin
+      Result := False;
+      MessageDlg('Оценочная стоимость товара не совпадает с отчетом', mtError, [mbOK], 0);
+    end;
+
+
+  if not Result then
+    s2 := ' Error '
+  else
+    s2 := '';
+  s1 := 'Касса: ' + FormatCurr('# ##0.00гр', sMoney);
+  //'Товара ' + IntToStr(sum) + ' ед. на ' + CurrToStr(sValueGoods) + 'гр.';
+  s2 := s2 + 'Ковров: ' + IntToStr(sCarpet) + ' шт.; Разного: ' +
+    IntToStr(sElse) + ' шт.; Дорожек: ' + IntToStr(sTrack) +
+      ' рулонов; Картин: ' + IntToStr(sPicture) + ' шт.; Металл: ' +
+        IntToStr(sMetal) + ' шт.;' + s2;
+      
+  Auto.Free;
+end;
+
+function TAutoBot1.GetIntervalSale: Integer;
+begin
+  Result := cIntervalSale
+end;
+
+function Address: Integer;
+begin
+  Result := cAddress;
+end;
+
+function RespTransact: Integer;
+begin
+  Result := cRespTransact;
+end;
+
+function RetPeriod: Integer;
+begin
+  Result := cRetPeriod;
+end;
+
+function IntervalSale: Integer;
+begin
+  Result := cIntervalSale
+end;
+
+function DefRespons: Integer;
+var
+  v: Variant;
+begin
+  v := quQuery('SELECT MIN(GWResp) FROM GraphWork WHERE GWDate = (SELECT MAX(GWDate) FROM GraphWork WHERE GWAddress = '  + IntToStr(Address) + ') AND GWAddress = ' + IntToStr(Address));
+  if VarIsNull(v) then
+    v := quQuery('SELECT MIN(PersonelID) FROM PERSONEL WHERE PAddressPartner = ' + IntToStr(Address));
+  if VarIsNull(v) then
+    v := 1;
+  Result := v;
+end;
+
+function LastDate: TDate;
+var
+  v: Variant;
+begin
+  v := quQuery('SELECT MAX(GWDate) FROM GraphWork WHERE GWAddress = ' + IntToStr(Address));
+  if VarIsNull(v) then
+    Result := Date
+  else
+    Result := v;
+end;  
+
+type
+  TMoveGoods = (mEnGoods, mOutGoods);
+
+function MrUpdateGoods(MoveGoods: TMoveGoods; d: TDate; TermIns: string; sMoney, sValGoods: Currency; sCarpet, sElse, sMetal, sPicture, sTrack: Integer; sSqTrack: Real): Boolean;
+var
+  mGoods,
+  mMoney: Char;
+begin
+  Result := False;
+  case MoveGoods of
+    mEnGoods:
+      begin
+        mGoods := '+';
+        mMoney := '-';
+      end;
+    mOutGoods:
+      begin
+        mGoods := '-';
+        mMoney := '+';
+      end;
+  else
+    mGoods := 'E';
+    mMoney := 'E';
+  end;
+
+  if (TermIns <> '=') and (TermIns <> '>=') and (TermIns <> '<=') then
+    Exit;
+  quQuery(
+    'UPDATE MiniReport ' +
+      'SET MrCarped = MrCarped ' + mGoods + IntToStr(sCarpet) +
+        ' , MrElse = MrElse ' + mGoods + IntToStr(sElse) +
+        ' , MrMetal = MrMetal ' + mGoods + IntToStr(sMetal) +
+        ' , MrTrack = MrTrack ' + mGoods + IntToStr(sTrack) +
+        ' , MrPicture = MrPicture ' + mGoods + IntToStr(sPicture) +
+        ' , MrSqTrack = MrSqTrack ' + mGoods + FloatToStrP(sSqTrack) +
+        ' , MrMoney = MrMoney ' + mMoney + FloatToStrP(sMoney) +
+        ' , MrValueGoods = MrValueGoods ' + mGoods + FloatToStrP(sValGoods) +
+      ' WHERE MrDate ' + TermIns + ' "' + DateToStr(d) + '" AND MrAddressPartnerID = ' + IntToStr(Address)
+  );
+  Result := True;
+end;
+
+{ DONE 4 -oMrUpdate -cINS_BEFO_DATE : Поменять MrUpdate на 2 ф-ии }
+{ TODO 4 -oMrUpdate -cINS_BEFO_DATE : добавить бизнес правило политики цен }
+function MrOutputGoods(d: TDate; TermIns: string; sMoney, sValGoods: Currency; sCarpet, sElse, sMetal, sPicture, sTrack: Integer; sSqTrack: Real): Boolean;
+begin
+  Result := MrUpdateGoods(mOutGoods, d, TermIns, sMoney, sValGoods, sCarpet, sElse, sMetal, sPicture, sTrack, sSqTrack)
+end;
+
+function MrEnterGoods(d: TDate; TermIns: string; sMoney, sValGoods: Currency; sCarpet, sElse, sMetal, sPicture, sTrack: Integer; sSqTrack: Real): Boolean;
+begin
+  Result := MrUpdateGoods(mEnGoods, d, TermIns, sMoney, sValGoods, sCarpet, sElse, sMetal, sPicture, sTrack, sSqTrack)
+end;
+
+// не скопирует только если последняя дата совпадает с D
+{ TODO 2 -oCopyLastToMrGW : предусмотреть вставку перед последней датой }
+function NewMiniReportFromLast(D: TDate): Boolean;
+var
+  sSqTrack: Real;
+  sMoney, nValGoods: Currency;
+  sCarpet, sElse, sTrack, sPicture, sMetal: Integer;
+  vResult: Variant;
+begin
+  Result := False;
+  D := Int(D);
+  try
+    vResult := quQuery('SELECT MAX(MrDate) FROM MiniReport WHERE MrAddressPartnerID = ' + IntToStr(Address));
+    quLastCount(sSqTrack, sCarpet, sElse, sTrack, sPicture, sMetal, sMoney, nValGoods, Address);
+    if VarIsNull(vResult) or (vResult < Int(D)) then
+      quQuery('INSERT INTO MiniReport (MrDate, MrAddressPartnerID, MrMoney, MrCarped, MrElse, MrMetal, MrTrack, MrPicture, MrSqTrack, MrValueGoods) ' +
+        'VALUES ("' + DateToStr(D) + '", ' + IntToStr(Address) + ', ' + FloatToStrP(sMoney) + ', ' + IntToStr(sCarpet) + ', ' + IntToStr(sElse) + ', ' + IntToStr(sMetal) + ', ' + FloatToStrP(sTrack) + ', ' + IntToStr(sPicture) + ', ' + FloatToStrP(sSqTrack) + ', ' + FloatToStrP(nValGoods) + ')') else
+    if (not VarIsNull(vResult)) and ((D = vResult)) then
+      Exit
+    else
+      begin
+        ShowMessage('NewMiniReportFromLast^ Ошибка вставки');
+        Exit;
+      end;
+    Result := True;
+  except
+  end;
+end;
+
+function PersOldNew(const Old, New: Currency): Real;
+begin
+  Result := 0;
+  if Old = 0 then
+    Exit;
+  Result := 100 - New * 100 / Old
+end;
+
+function LighterColor(const Color: TColor; Percent: Integer): TColor;
+var
+  R, G, B: Byte;
+begin
+  Result := Color;
+  if Percent <= 0 then
+    Exit;
+  if Percent > 100 then
+    Percent := 100;
+
+  Result := ColorToRGB(Color);
+
+  R := GetRValue(Result);
+  G := GetGValue(Result);
+  B := GetBValue(Result);
+  R := R + (255 - R) * Percent div 100;
+  G := G + (255 - G) * Percent div 100;
+  B := B + (255 - B) * Percent div 100;
+  Result := RGB(R, G, B);
+end;
+
+
+end.

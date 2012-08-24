@@ -1,0 +1,142 @@
+object fmMoneyTransact: TfmMoneyTransact
+  Left = 454
+  Top = 116
+  Width = 447
+  Height = 217
+  Caption = #1044#1077#1085#1077#1078#1085#1099#1077' '#1086#1087#1077#1088#1072#1094#1080#1080
+  Color = clBtnFace
+  Font.Charset = DEFAULT_CHARSET
+  Font.Color = clWindowText
+  Font.Height = -11
+  Font.Name = 'MS Sans Serif'
+  Font.Style = []
+  OldCreateOrder = False
+  OnHide = FormHide
+  OnShow = FormShow
+  PixelsPerInch = 96
+  TextHeight = 13
+  object lbl1: TLabel
+    Left = 168
+    Top = 8
+    Width = 43
+    Height = 13
+    Caption = #1055#1072#1088#1090#1085#1077#1088
+  end
+  object lbl2: TLabel
+    Left = 168
+    Top = 32
+    Width = 84
+    Height = 13
+    Caption = #1040#1076#1088#1077#1089' '#1087#1072#1088#1090#1085#1077#1088#1072':'
+  end
+  object lbl3: TLabel
+    Left = 168
+    Top = 56
+    Width = 86
+    Height = 13
+    Caption = #1054#1090#1074'. '#1086#1090' '#1087#1072#1088#1090#1085#1077#1088#1072
+  end
+  object lbl4: TLabel
+    Left = 168
+    Top = 80
+    Width = 79
+    Height = 13
+    Caption = #1054#1090#1074#1077#1090#1089#1090#1074#1077#1085#1085#1099#1081
+  end
+  object lbl5: TLabel
+    Left = 168
+    Top = 104
+    Width = 37
+    Height = 13
+    Caption = #1057#1091#1084#1084#1072':'
+  end
+  object lbl6: TLabel
+    Left = 344
+    Top = 104
+    Width = 20
+    Height = 13
+    Caption = #1075#1088#1085'.'
+  end
+  object dblkcbbResp: TDBLookupComboBox
+    Left = 264
+    Top = 72
+    Width = 145
+    Height = 21
+    KeyField = 'PersonelID'
+    ListField = 'PSurname; PDOB'
+    ListSource = DM.ds6
+    TabOrder = 0
+  end
+  object dblkcbbRespPartner: TDBLookupComboBox
+    Left = 264
+    Top = 48
+    Width = 145
+    Height = 21
+    KeyField = 'PersonelID'
+    ListField = 'PSurname; PDOB'
+    ListSource = DM.ds6
+    TabOrder = 1
+  end
+  object dblkcbbAddrPartner: TDBLookupComboBox
+    Left = 264
+    Top = 24
+    Width = 145
+    Height = 21
+    KeyField = 'AddressPartnerID'
+    ListField = 'ACity; AStreet'
+    ListSource = DM.ds4
+    TabOrder = 2
+  end
+  object calMonTrans: TMonthCalendar
+    Left = 0
+    Top = 0
+    Width = 162
+    Height = 153
+    Date = 40940.485105243050000000
+    TabOrder = 3
+    OnClick = calMonTransClick
+  end
+  object dblkcbbPartner: TDBLookupComboBox
+    Left = 264
+    Top = 0
+    Width = 145
+    Height = 21
+    KeyField = 'PartnerID'
+    ListField = 'PName'
+    ListSource = DM.ds5
+    TabOrder = 4
+  end
+  object btnApply: TBitBtn
+    Left = 248
+    Top = 128
+    Width = 75
+    Height = 25
+    TabOrder = 5
+    OnClick = btnApplyClick
+    Kind = bkOK
+  end
+  object btnClose: TBitBtn
+    Left = 344
+    Top = 128
+    Width = 75
+    Height = 25
+    TabOrder = 6
+    Kind = bkCancel
+  end
+  object chkEnterRecipient: TCheckBox
+    Left = 376
+    Top = 104
+    Width = 49
+    Height = 17
+    Caption = #1042#1093#1086#1076
+    TabOrder = 7
+  end
+  object edtSumMoney: TEdit
+    Left = 216
+    Top = 96
+    Width = 121
+    Height = 21
+    TabOrder = 8
+    OnKeyPress = edtSumMoneyKeyPress
+  end
+end

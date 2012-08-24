@@ -1,0 +1,262 @@
+unit ListPriceGoodsU;
+
+interface
+
+uses
+  Classes, SysUtils;
+
+type
+  TInfoGoods = class
+  public
+    newPr,
+    oldPr: Currency;
+    Count,
+    gType,
+    gElse1,
+    gElse2,
+    gElse3: Integer;
+  end;
+
+  TListPriceGoods = class
+  protected
+    ListPrice: TStringList;
+    function GetID(index: Integer): string;
+  public
+    function ifEmpty: Boolean;
+    function Count: Integer;
+    property ID[index: Integer]: string read GetID;
+    function PricePolicy(const IDX: Integer; var newPrice, oldPrice: Currency;
+        var iCount, ID: Integer): Boolean;
+    function ifFind(ID: Integer): Boolean; overload;
+    function ifFind(ID: Integer; var newCurr: Currency): Boolean; overload;
+    function ifFind(ID: Integer; var oldCurr, newCurr: Currency): Boolean; overload;
+    function ifFind(ID: Integer; var oldCurr, newCurr: Currency; var iCount: Integer): Boolean; overload;
+    function ifFind(ID: Integer; var oldCurr, newCurr: Currency; var iCount, else1: Integer): Boolean; overload;
+    function ifFind(ID: Integer; var oldCurr, newCurr: Currency; var iCount, else1, iType: Integer): Boolean; overload;
+    function ifFind(ID: Integer; var oldCurr, newCurr: Currency; var iCount, else1, iType, else2, else3: Integer): Boolean; overload;
+    procedure Add(ID: Integer; oldCurr, newCurr: Currency; iCount, iType: Integer; else1: Integer = 0; gElse2 : Integer = 0; gElse3 : Integer = 0);
+    procedure INFO(var iAll, iUp, iLow, iNotChange: Integer;
+      var cuAll, cuUp, cuLow: Currency);
+    procedure Clear();
+    procedure Delete(ID: Integer);
+
+    constructor Create;
+    destructor Destroy; reintroduce;
+  end;
+
+
+implementation
+
+uses AutoBot1U;
+
+{ TListPrice }
+
+procedure TListPriceGoods.Add(ID: Integer; oldCurr, newCurr: Currency; iCount, iType: Integer; else1: Integer = 0; gElse2 : Integer = 0; gElse3 : Integer = 0);
+var
+  I: Integer;
+begin
+  with ListPrice do
+  begin
+    if Find(IntToStr(ID), I) then
+      Delete(I);
+    Sorted := False;
+    Add(IntToStr(ID));
+    Objects[Count - 1] := TInfoGoods.Create;
+    (Objects[Count - 1] as TInfoGoods).newPr := newCurr;
+    (Objects[Count - 1] as TInfoGoods).oldPr := oldCurr;
+    (Objects[Count - 1] as TInfoGoods).Count := iCount;
+    (Objects[Count - 1] as TInfoGoods).gType := iType;
+    (Objects[Count - 1] as TInfoGoods).gElse1 := else1;
+    (Objects[Count - 1] as TInfoGoods).gElse2 := gElse2;
+    (Objects[Count - 1] as TInfoGoods).gElse3 := gElse3;
+    Sorted := True;
+  end;
+end;
+
+
+function TListPriceGoods.ifFind(ID: Integer): Boolean;
+var
+  c: Currency;
+begin
+  Result := ifFind(ID, c)
+end;
+
+function TListPriceGoods.ifFind(ID: Integer; var newCurr: Currency): Boolean;
+var
+  tmp: Currency;
+begin
+  Result := ifFind(ID, tmp, newCurr)
+end;
+
+
+function TListPriceGoods.ifFind(ID: Integer; var oldCurr,
+  newCurr: Currency): Boolean;
+var
+  I: Integer;
+begin
+  Result := ifFind(ID, oldCurr, newCurr, I)
+end;
+
+
+function TListPriceGoods.ifFind(ID: Integer; var oldCurr,
+  newCurr: Currency; var iCount: Integer): Boolean;
+var
+  I: Integer;
+begin
+  Result := ifFind(ID, oldCurr, newCurr, iCount, I)
+end;
+
+function TListPriceGoods.ifFind(ID: Integer; var oldCurr,
+  newCurr: Currency; var iCount, else1: Integer): Boolean;
+var
+  I: Integer;
+begin
+  Result := ifFind(ID, oldCurr, newCurr, iCount, else1, I)
+end;
+
+function TListPriceGoods.ifFind(ID: Integer; var oldCurr,
+  newCurr: Currency; var iCount, else1, iType: Integer): Boolean;
+var
+  I: Integer;
+begin
+  Result := ifFind(ID, oldCurr, newCurr, iCount, else1, iType, i, i)
+end;
+
+function TListPriceGoods.ifFind(ID: Integer; var oldCurr,
+  newCurr: Currency; var iCount, else1, iType, else2,
+  else3: Integer): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  with ListPrice do
+    if (Count > 0) and Find(IntToStr(ID), I) then
+      begin
+        Result := True;
+        newCurr := (Objects[I] as TInfoGoods).newPr;
+        oldCurr := (Objects[I] as TInfoGoods).oldPr;
+        iCount := (Objects[I] as TInfoGoods).Count;
+        else1 := (Objects[I] as TInfoGoods).gElse1;
+        iType := (Objects[I] as TInfoGoods).gType;
+        else2 := (Objects[I] as TInfoGoods).gElse2;
+        else3 := (Objects[I] as TInfoGoods).gElse3;
+      end;
+end;
+
+procedure TListPriceGoods.INFO(var iAll, iUp, iLow, iNotChange: Integer;
+  var cuAll, cuUp, cuLow: Currency);
+var
+  I,
+  iCount: Integer;
+  cuTmpOld,
+  cuTmpNew,
+  cuTmp: Currency;
+begin
+  iAll := 0; iUp := 0; iLow := 0; iNotChange := 0; cuAll := 0; cuUp := 0; cuLow := 0;
+  with ListPrice do
+    for I := 0 to Count - 1 do
+      begin
+        cuTmpOld := (Objects[I] as TInfoGoods).oldPr;
+        cuTmpNew := (Objects[I] as TInfoGoods).newPr;
+
+        iCount := (Objects[I] as TInfoGoods).Count;
+
+        cuTmp := (cuTmpNew - cuTmpOld) * iCount;
+        if cuTmp > 0 then
+          begin                    
+            case cTypeGoods((Objects[I] as TInfoGoods).gType) of
+              tTrack: if iCount > 0 then Inc(iUp, 1);
+            else
+              Inc(iUp, iCount);
+            end;
+            cuUp := cuUp + Abs(cuTmp);
+          end else
+        if cuTmp < 0 then
+          begin
+            case cTypeGoods((Objects[I] as TInfoGoods).gType) of
+              tTrack: if iCount > 0 then Inc(iLow, 1);
+            else
+              Inc(iLow, iCount);
+            end;
+            cuLow := cuLow + Abs(cuTmp);
+          end
+        else
+          case cTypeGoods((Objects[I] as TInfoGoods).gType) of
+            tTrack: if iCount > 0 then Inc(iNotChange, 1);
+          else
+            Inc(iNotChange, iCount);
+          end;
+          
+
+        case cTypeGoods((Objects[I] as TInfoGoods).gType) of
+          tTrack: if iCount > 0 then iCount := 1;
+        end;
+
+        Inc(iAll, iCount);
+        cuAll := cuAll + cuTmp;
+      end;
+end;
+
+function TListPriceGoods.PricePolicy(const IDX: Integer; var newPrice,
+  oldPrice: Currency; var iCount, ID: Integer): Boolean;
+begin
+  Result := False;
+  with ListPrice do
+  begin
+    if not((IDX >= 0) and (IDX < Count)) then
+      Exit;
+    ID := StrToInt(ListPrice[IDX]);
+    newPrice := (Objects[IDX] as TInfoGoods).newPr;
+    oldPrice := (Objects[IDX] as TInfoGoods).oldPr;
+    iCount := (Objects[IDX] as TInfoGoods).Count;
+  end;
+  Result := True
+end;
+
+procedure TListPriceGoods.Clear;
+begin
+  ListPrice.Clear;
+end;
+
+function TListPriceGoods.Count: Integer;
+begin
+  Result := ListPrice.Count
+end;
+
+constructor TListPriceGoods.Create;
+begin
+  ListPrice := TStringList.Create;
+  ListPrice.Sorted := True;
+  ListPrice.Duplicates := dupIgnore
+end;
+
+procedure TListPriceGoods.Delete(ID: Integer);
+var
+  I: Integer;
+begin
+  with ListPrice do
+    if Find(IntToStr(ID), I) then
+      Delete(I)
+end;
+
+destructor TListPriceGoods.Destroy;
+begin
+  ListPrice.Free
+end;
+
+function TListPriceGoods.GetID(index: Integer): string;
+begin
+  Result := ListPrice[index]
+end;
+
+function TListPriceGoods.ifEmpty: Boolean;
+begin
+  Result := ListPrice.Count < 1
+end;
+
+{End TListPriceGoods}
+
+
+
+end.
+ 

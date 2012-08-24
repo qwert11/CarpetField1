@@ -1,0 +1,345 @@
+unit PrintU;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
+  Dialogs, ExtCtrls, ComCtrls, DB, DBTables, Grids, DBGrids, StdCtrls,
+  RpCon, RpConDS, RpDefine, RpRave, RvCsStd, ActnList, Menus, uCrystalApi;
+
+type
+  TfmPrint = class(TForm)
+    tbcFilter: TTabControl;
+    pnl1: TPanel;
+    dbgrdGoods: TDBGrid;
+    qryGoods: TQuery;
+    ds1: TDataSource;
+    intgrfldGoodsDCount: TIntegerField;
+    crncyfldGoodsDPriceCoeff: TCurrencyField;
+    strngfldGoodsTGoods: TStringField;
+    strngfldGoodsGTitle: TStringField;
+    strngfldGoodsGArticul: TStringField;
+    intgrfldGoodsGLength: TIntegerField;
+    intgrfldGoodsGWidth: TIntegerField;
+    strngfldGoodsACity: TStringField;
+    strngfldGoodsAStreet: TStringField;
+    strngfldGoodsProducerGoods: TStringField;
+    intgrfldGoodsDetailGoodsID: TIntegerField;
+    intgrfldGoodsAddressPartnerID: TIntegerField;
+    intgrfldGoodsGType: TIntegerField;
+    strngfldGoodsGInfo: TStringField;
+    crncyfldGoodsPrSquare: TCurrencyField;
+    lbl1: TLabel;
+    chkNotNull: TCheckBox;
+    btnPrint: TButton;
+    rvprjctPrint: TRvProject;
+    conGoods: TRvDataSetConnection;
+    stat1: TStatusBar;
+    intgrfldGoodsGoodsID: TIntegerField;
+    btnPrintC: TButton;
+    actlst1: TActionList;
+    actPrintCennik: TAction;
+    actClearList: TAction;
+    pm1: TPopupMenu;
+    mniClearList: TMenuItem;
+    mniN1: TMenuItem;
+    edtFind: TEdit;
+    actAdd: TAction;
+    actAddAllSelect: TAction;
+    mniAdd: TMenuItem;
+    mniAddAllSelect: TMenuItem;
+    edtDiscount: TEdit;
+    lbl2: TLabel;
+    lbl3: TLabel;
+    btn1: TButton;
+    procedure qryGoodsCalcFields(DataSet: TDataSet);
+    procedure tbcFilterChange(Sender: TObject);
+    procedure chkNotNullClick(Sender: TObject);
+    procedure FormShow(Sender: TObject);
+    procedure FormHide(Sender: TObject);
+    procedure strngfldGoodsGTitleGetText(Sender: TField; var Text: String;
+      DisplayText: Boolean);
+    procedure intgrfldGoodsDCountGetText(Sender: TField; var Text: String;
+      DisplayText: Boolean);
+    procedure crncyfldGoodsDPriceCoeffGetText(Sender: TField;
+      var Text: String; DisplayText: Boolean);
+    procedure btnPrintClick(Sender: TObject);
+    procedure dbgrdGoodsKeyPress(Sender: TObject; var Key: Char);
+    procedure dbgrdGoodsDrawColumnCell(Sender: TObject; const Rect: TRect;
+      DataCol: Integer; Column: TColumn; State: TGridDrawState);
+    procedure actPrintCennikUpdate(Sender: TObject);
+    procedure actClearListExecute(Sender: TObject);
+    procedure actPrintCennikExecute(Sender: TObject);
+    procedure edtFindChange(Sender: TObject);
+    procedure edtFindClick(Sender: TObject);
+    procedure edtFindDblClick(Sender: TObject);
+    procedure actAddExecute(Sender: TObject);
+    procedure actAddAllSelectExecute(Sender: TObject);
+    procedure edtDiscountKeyPress(Sender: TObject; var Key: Char);
+    procedure edtDiscountChange(Sender: TObject);
+    procedure btn1Click(Sender: TObject);
+  private
+    { Private declarations }
+    procedure SetFilter;
+    procedure TO_SG_XSL(f: string);
+  public
+    { Public declarations }
+  end;
+
+var
+  fmPrint: TfmPrint;
+
+implementation
+
+uses dmCheque, AutoBot1U, ListPriceGoodsU;
+
+var
+  LPrice: TListPriceGoods;
+
+{$R *.dfm}
+
+procedure TfmPrint.qryGoodsCalcFields(DataSet: TDataSet);
+begin
+  if strngfldGoodsTGoods.AsString = 'Êîâğû' then
+        crncyfldGoodsPrSquare.Value := crncyfldGoodsDPriceCoeff.Value * 1000000 /
+      intgrfldGoodsGWidth.Value / intgrfldGoodsGLength.Value else
+  if strngfldGoodsTGoods.AsString = 'Äîğîæêè' then
+        crncyfldGoodsPrSquare.Value := crncyfldGoodsDPriceCoeff.Value * 1000000 /
+      intgrfldGoodsGWidth.Value
+end;
+
+procedure TfmPrint.SetFilter;
+  procedure AddFilter(const F: string);
+  begin
+    with qryGoods do
+      begin
+        if Length(Filter) > 0 then
+          Filter := Filter + ' AND ' + F
+        else
+          Filter := F;
+      end;
+  end;
+begin
+  with qryGoods do
+    begin
+      Filter := '';
+      if tbcFilter.Tabs[tbcFilter.TabIndex] <> 'âñå' then
+        AddFilter('TGoods = ''' + tbcFilter.Tabs[tbcFilter.TabIndex] + '''');
+
+      if chkNotNull.Checked then
+        AddFilter('DCount <> 0');
+    end;
+  qryGoods.Filtered := True
+end;
+
+procedure TfmPrint.tbcFilterChange(Sender: TObject);
+begin
+  SetFilter
+end;
+
+procedure TfmPrint.chkNotNullClick(Sender: TObject);
+begin
+  SetFilter
+end;
+
+procedure TfmPrint.FormShow(Sender: TObject);
+var
+  s: string;
+begin
+  LPrice := TListPriceGoods.Create;
+  s := Application.ExeName;
+  while S[Length(S)]<>'\' do
+    Delete(S, Length(S), 1);
+  rvprjctPrint.ProjectFile := S + rvprjctPrint.ProjectFile;
+  qryGoods.Open;
+  PEOpenEngine;
+  SetFilter
+end;
+
+procedure TfmPrint.FormHide(Sender: TObject);
+begin
+  PECloseEngine;
+  LPrice.Free;
+  qryGoods.Close
+end;
+
+procedure TfmPrint.strngfldGoodsGTitleGetText(Sender: TField;
+  var Text: String; DisplayText: Boolean);
+  function GetText(): string;
+  begin
+    Result := strngfldGoodsGTitle.Value + ' / ' +
+      MmToMetre(intgrfldGoodsGWidth.AsString) + ' * ' +
+      MmToMetre(intgrfldGoodsGLength.AsString) + ' [' +
+      strngfldGoodsProducerGoods.Value + '](' + strngfldGoodsTGoods.AsString + ') ' +
+      strngfldGoodsGInfo.Value
+  end;
+var
+  discount: Real;
+  s: string;
+begin
+  if ifHardStrToFloat(edtDiscount.Text, discount) and (discount > 0)
+      and (discount < 100) then
+    begin
+      if strngfldGoodsTGoods.AsString = 'Äîğîæêè' then
+        s := FormatCurr('# ##0.00ãğ ìï', crncyfldGoodsDPriceCoeff.Value * 1000)
+      else
+        s := FormatCurr('# ##0.00ãğ', crncyfldGoodsDPriceCoeff.Value);
+      Text := GetText + ' {' + s + '}'
+    end
+  else
+    case cTypeGoods(intgrfldGoodsGType.Value) of
+      tCarpet, tTrack:   Text := GetText + FormatCurr('# ##0.00ãğ /ìêâ', crncyfldGoodsPrSquare.Value);
+    else
+      Text := GetText
+    end;
+end;
+
+procedure TfmPrint.intgrfldGoodsDCountGetText(Sender: TField;
+  var Text: String; DisplayText: Boolean);
+begin
+  if strngfldGoodsTGoods.AsString = 'Äîğîæêè' then
+    Text := MmToMetre(intgrfldGoodsDCount.AsString) + 'ì'
+  else
+    Text := intgrfldGoodsDCount.AsString
+end;
+
+procedure TfmPrint.crncyfldGoodsDPriceCoeffGetText(Sender: TField;
+  var Text: String; DisplayText: Boolean);
+var
+  discount: Real;
+begin
+  if ifHardStrToFloat(edtDiscount.Text, discount) and (discount > 0)
+      and (discount < 100) then
+    discount := (100 - discount) / 100
+  else
+    discount := 1;
+
+  if strngfldGoodsTGoods.AsString = 'Äîğîæêè' then
+    Text := FormatCurr('# ##0.00ãğ ìï', crncyfldGoodsDPriceCoeff.Value * 1000 * discount)
+  else
+    Text := FormatCurr('# ##0.00ãğ', crncyfldGoodsDPriceCoeff.Value * discount)
+end;
+
+procedure TfmPrint.btnPrintClick(Sender: TObject);
+var
+  nSquareTrack: Real;
+  nCarpet, nElse, nTrack, nPicture, nMetal: Integer;
+  nMoney, nValGoods: Currency;
+  discount: Real;
+  s: string;
+begin
+  discount := 0;
+  if ifHardStrToFloat(edtDiscount.Text, discount) and (discount <> 0) then
+    begin
+      rvprjctPrint.SetParam('discount', 'Êîıôèöèåíò öåíû ' + FloatToStr(- discount) + '%');
+      s := ' {Ñòàğàÿ öåíà(ãğ.)}'
+    end
+  else
+    s := ' Öåíà(ãğ/ì.êâ)';
+  rvprjctPrint.SetParam('hPrice', s);
+  quLastCount(nSquareTrack, nCarpet, nElse, nTrack, nPicture, nMetal, nMoney, nValGoods, Address);
+  rvprjctPrint.SetParam('LastCount',
+    'Êîâğîâ: ' + IntToStr(nCarpet) + '; Ğàçíîå: ' + IntToStr(nElse) +
+    '; Äîğîæåê: ' + IntToStr(nTrack) + 'øò.,(' + FloatToStr(nSquareTrack) + 'ì.êâ.)' +
+    '; Êàğòèí: ' + IntToStr(nPicture) + '; Ìåòàëë: ' + IntToStr(nMetal)
+  );
+  rvprjctPrint.SetParam('LastDate', DateToStr(LastDate));
+  rvprjctPrint.Execute
+end;
+
+type
+  THakBookmark = class(TBookmarkList);
+
+procedure TfmPrint.dbgrdGoodsKeyPress(Sender: TObject; var Key: Char);
+var
+  sCountCennik: string;
+  CountCennik,
+  i: Integer;
+  tmpC: Currency;
+begin
+  sCountCennik := '1';
+
+  case Key of
+    #13:
+      with dbgrdGoods, dbgrdGoods.DataSource.DataSet, qryGoods do
+      try
+
+  è    İEÀØt
+  ßàv1ÿuÌh€
+  •ÿÿÿ‹ƒÜ  è    ÿµÿÿÿhŒ
+  EÌº   è    ƒ}ì ~1ÿuÌh 
+  •ÿÿÿ‹ƒ´  è    ÿµÿÿÿh 
+  EÌº   è    ‹ƒ  ƒ¸L  ~P     ,t,uC•ÿÿÿ‹ƒÔ  è    ‹…ÿÿÿè    „Àu#‹ƒÔ  ‹ÿ’Ä   ‹ƒÔ  è    è    é‹   h´
+  •üşÿÿ‹ƒ  è    ÿµüşÿÿhÄ
+  •øşÿÿ‹ƒÀ  è    ÿµøşÿÿhä
+  … ÿÿÿº   è    ‹… ÿÿÿP‹ƒx  ‹€  3Òè    Zè    ‹ƒx  ‹€  º   è    ‹UÌè    3ÀZYYd‰h¯	  …øşÿÿº   è    … ÿÿÿè    …ÿÿÿº   è    …(ÿÿÿè    …,ÿÿÿè    …<ÿÿÿè    …Hÿÿÿº   è    …Pÿÿÿè    …Tÿÿÿè    …Xÿÿÿè    …\ÿÿÿº   è    E”º	   è    EÌè    Ãé    éSÿÿÿ_^[‹å]Ã   $tIÿÿÿÿ   Error     @@ÿÿÿÿ   Ñêèäêà %2.1n    ÿÿÿÿ   %   ÿÿÿÿ    (%m)   ÿÿÿÿ   Êîâğîâ:     ÿÿÿÿ    åä.;   ÿÿÿÿ	   Ğàçíîãî:    ÿÿÿÿ	   Ìåòàëëà:    ÿÿÿÿ	   Äîğîæåê:    ÿÿÿÿ    åä.        ÿÿÿÿ   ,   ÿÿÿÿ	    ì.êâ.;     ÿÿÿÿ   Êàğòèí:     ÿÿÿÿ   Âñåãî   ÿÿÿÿ    åä. òîâàğà íà ñóììó    ÿÿÿÿ    ãğí.   U‹ì¹   j j IuùQSV‹Ø3ÀUh¯  dÿ0d‰ ‹ƒ4  ‰Eü‹³0  ‹Æè    ‹ĞMø‹†(  ‹0ÿV‹EøºÄ  è    …Ï        şÈt,tIú,r	şÈtoé¤   hĞ  è    Uğè    ÿuğhì  Eôº   è    ‹Uô‹Eü‹ÿ‘˜  éº  è    Uèè    ‹MèEìºĞ  è    ‹Uì‹Eü‹ÿ‘˜  éŠ  hĞ  è    Uàè    ÿuàh  Eäº   è    ‹Uä‹Eü‹ÿ‘˜  éP  ¸   è    éA       şÈt,trú,rşÈ„À   é  hĞ  è    UØè    ÿuØhD  ‹³0  ‹Æè    ‹ĞMÔ‹†(  ‹0ÿVÿuÔhl  EÜº   è    ‹UÜ‹Eü‹ÿ‘˜  éÂ   hĞ  è    UÌè    ÿuÌhx  ‹³0  ‹Æè    ‹ĞMÈ‹†(  ‹0ÿVÿuÈhl  EĞº   è    ‹UĞ‹Eü‹ÿ‘˜  ëfhĞ  è    UÀè    ÿuÀh  ‹³0  ‹Æè    ‹ĞM¼‹†(  ‹0ÿVÿu¼hl  EÄº   è    ‹UÄ‹Eü‹ÿ‘˜  ë
+¸   è    ²‹ƒ4  ‹ÿ‘  ‹ƒ  ‹ÿ’Ä   ‹ƒ  è    3ÀZYYd‰h¶  E¼º   è    Ãé    ëë^[‹å]Ãÿÿÿÿ   âñå ÿÿÿÿ   AddressPartnerID =  ÿÿÿÿ    AND DCount <> 0    ÿÿÿÿ    AND DCount < 1 ÿÿÿÿ   Îòñóòñòâóåò áèçíåñ ïğàâèëî  ÿÿÿÿ    AND DCount <> 0 AND TGoods = ' ÿÿÿÿ   '   ÿÿÿÿ    AND TGoods = ' ÿÿÿÿ    AND DCount < 1 AND TGoods = '  U‹ìj j j j j j j j SV‹ñ‹Ø3ÀUhã   dÿ0d‰ Uü‹ƒH  ‹ÿQ`ÿuühü   Uô‹ƒT  ‹ÿQ`‹EôUøè    ÿuøh  Uì‹ƒP  ‹ÿQ`‹EìUğè    ÿuğh  Uè‹ƒd  ‹ÿQ`ÿuèh   Uä‹ƒD  ‹ÿQ`ÿuäh,  Uà‹ƒ  ‹ÿQ`ÿuà‹Æº   è    3ÀZYYd‰hê   Eàº   è    Ãé    ëë^[‹å]Â   ÿÿÿÿ    /  ÿÿÿÿ    *  ÿÿÿÿ    [  ÿÿÿÿ   ](  ÿÿÿÿ   )   U‹ìƒÄØS3É‰MØ‰Mü‹Ø3ÀUh  dÿ0d‰ Uü‹ƒD  ‹ÿQ`‹Eüº(  è    u\‹ƒ@  ‹ÿRTØ0  Û}ğ›‹ƒT  ‹ÿRX‰EìÛEìÛmğŞñÛ}à›‹ƒP  ‹ÿRX‰EÜÛEÜÛmàŞñƒÄøİ$›‹ƒh  ‹ÿ’¤   ë]UØ‹ƒD  ‹ÿQ`‹EØº<  è    u@‹ƒ@  ‹ÿRTØ0  Û}ğ›‹ƒT  ‹ÿRX‰EìÛEìÛmğŞñƒÄøİ$›‹ƒh  ‹ÿ’¤   3ÀZYYd‰h  EØè    Eüè    Ãé    ëè[‹å]Ã ÿÿÿÿ   Êîâğû    $tIÿÿÿÿ   Äîğîæêè U‹ìj j j j SV‹ñ‹Ø3ÀUh™   dÿ0d‰ Uü‹ƒD  ‹ÿQ`‹Eüº°   è    u*Uô‹ƒ<  ‹ÿQ`‹EôUøè    ‹Uø‹Æ¹À   è    ëUğ‹ƒ<  ‹ÿQ`‹Uğ‹Æè    3ÀZYYd‰h    Eğº   è    Ãé    ëë^[‹å]Â ÿÿÿÿ   Äîğîæêè ÿÿÿÿ   ì.  U‹ìj j j SV‹ñ‹Ø3ÀUh©   dÿ0d‰ Uü‹ƒD  ‹ÿQ`‹EüºÀ   è    u7‹ƒ@  ‹ÿRTØÈ   ØÌ   ƒÄøß<$›Eøè    ‹Uø‹Æ¹Ø   è    ëUô‹ƒ@  ‹ÿQ`‹Uô‹Æ¹è   è    3ÀZYYd‰h°   Eôº   è    Ãé    ëë^[‹å]Â ÿÿÿÿ   Äîğîæêè   zD @Fÿÿÿÿ   ğ.ìï    ÿÿÿÿ   ğ.  U‹ì]Â U‹ìQ¹   j j IuùQ‡MüSV‹Ú‹E3ÒUh  dÿ2d‰"¨„Â  ‹Ã‹    è    ‹Ø‹ƒL  H‹³,  ;Æ„‘  …ö„‰  EüP‹Îº	   ‹Ãè    ‹Eüè    <„g  EøP‹‹,  º   ‹Ãè    ‹Eøè    HB  EğP‹³,  ‹Îº   ‹Ãè    ‹Eğè    HUôè    ‹EôP‹Îº   ‹Ãè    EèP‹‹,  º   ‹Ãè    ‹Eèè    ‰EäÛEäÛ}Ø›EÔP‹³,  ‹Îº   ‹Ãè    ‹EÔè    ÛmØŞÉƒÄøß<$›Eìè    ‹EìP‹Îº   ‹Ãè    EÌP‹‹,  º   ‹Ãè    ‹EÌè    ‰EäÛEäÛ}Ø›EÈP‹³,  ‹Îº   ‹Ãè    ‹EÈè    ÛmØŞÉÛ}¼›E¸P‹‹,  º   ‹Ãè    ‹E¸è    Ø-,  Ûm¼ŞÉØ5,  ƒÄøß<$›EĞè    ‹EĞP‹Îº   ‹Ãè    éó  ¨„ë  ‹Ã‹    è    ‹Ø‹ƒL  H‹³,  ;Æ„Ç  …ö„¿  E´P‹Îº	   ‹Ãè    ‹E´è    <„       ,tJ,	tFE°P‹‹,  º   ‹Ãè    ‹E°è    ‹ğE¬P‹‹,  º   ‹Ãè    ‹E¬è    ;ğJ  E¤P‹³,  ‹Îº   ‹Ãè    ‹E¤è    @U¨è    ‹E¨P‹Îº   ‹Ãè    EœP‹‹,  º   ‹Ãè    ‹Eœè    ‰EäÛEäÛ}Ø›E˜P‹³,  ‹Îº   ‹Ãè    ‹E˜è    ÛmØŞÉƒÄøß<$›E è    ‹E P‹Îº   ‹Ãè    EP‹‹,  º   ‹Ãè    ‹Eè    ‰EäÛEäÛ}Ø›EŒP‹³,  ‹Îº   ‹Ãè    ‹EŒè    ÛmØŞÉÛ}¼›EˆP‹‹,  º   ‹Ãè    ‹Eˆè    Ø-,  Ûm¼ŞÉØ5,  ƒÄøß<$›E”è    ‹E”P‹Îº   ‹Ãè    3ÀZYYd‰h"  Eˆº   è    EÈº   è    Eèº   è    Ãé    ëÑ^[‹å]Â     ÈBU‹ìSV‹ñ‹Ú‹Ã‹    è    ‹Øƒşuf‹T   f“H  ‹Ãè    ëf‹T   ÷Òf#“H  ‹Ãè    ^[]Â       U‹ìƒÄøSVW‹Ú‰Eüfƒ9.…   ‹Ã‹    è    ‹Ø‹“L  J‹ƒ,  ;Ğtn‰Eø‹³  N…ö|F3ÿj ‹‹,  ‹×‹Ãè    GNuë‹Eü‹€  ‹“,  ‹ÿ‘ä   ‹ƒL  H;Eøu‹UøJ‹Ãè    ë
+‹Uø‹Ãè    ‹Eü‹€ø  è    _^[YY]Â U‹ìƒÄèS‰Mø‰Uü‹]‹Eüè    ‹Eøè    3ÀUhš   dÿ0d‰ ‹Ãº°   è    Uğ‹Eüè    „Àt6Uè‹Eøè    „Àt'ßmğßmèŞéØ¸   ßmğŞùØ¼   ƒÄøß<$›‹Ãè    3ÀZYYd‰h¡   Eøº   è    Ãé    ëë[‹å]Â ÿÿÿÿ   Error     ÈB @FU‹ìj j j SVW‹ù‹Ú‰Eü‹u3ÀUhû   dÿ0d‰ ‹Ã‹    è    ‹Øƒï…¤   3ÀUhŠ   dÿ0d‰ EøPEôP‹Îº   ‹Ãè    ‹Uô‹M‹Eüè    ‹EøP‹Îº   ‹Ãè    3ÀZYYd‰ëVé    ‹Eü‹€x  ‹€  3Òè    º  è    è    hô  è    ‹Eü‹€x  ‹€  3Òè    3Òè    è    3ÀZYYd‰h  Eôº   è    Ãé    ëë_^[‹å]Â  ÿÿÿÿ   Error   U‹ìQSV„ÒtƒÄğè    ‹ÙˆUÿ‹ğ‹E‹    è    ‹È3Ò‹Æè    ˆ    ‹Æ€}ÿ tè    d    ƒÄ‹Æ^[Y]Â U‹ì3ÉQQQQQS‹Ø3ÀUhn   dÿ0d‰  |   PUì‹ƒ  è    ‹UìEğè    Mğºˆ   ‹ƒ4  ‹ÿ“D  3ÀZYYd‰hu   Eìè    Eğè    Ãé    ëè[‹å]Ã     ÿÿÿÿ   GTitle  U‹ìƒÄĞSVW‰Uø‰Eü‹Eø@ƒø|yƒè…À|r@‰EğÇEô    ‹uüƒÆ‹Eô@‹UøBJ+Ğ|IBÁà‹Mü\Áß.ß+ŞÙßàv-Vsø}Ğ¹   ó¥^VƒÆø{ø¹   ó¥^V~øuĞ¹   ó¥^ƒÃ JuÂÿEôƒÆ ÿMğuŸ_^[‹å]ÃU‹ìBJ…Ò|BƒÀß(ÜMßx›ƒÀ Juñ]Â U‹ìƒÄğ3É‰Mğ‰MôBJ…Ò|BƒÀßmğß(ŞÁß}ğ›ƒÀ Juïßmğ‹EßhŞéØ5H   İ]ø›İEø‹å]Ã    @FU‹ìƒÄø3À‰Eø‰Eü‹E‹PüBJ…Ò|B‹E‹@øƒÀßmøß(ŞÁß}ø›ƒÀ JuïßmøYY]ÃU‹ìƒÄèSVW3É‰Mğ‰Uü‰Eø3ÀUhV  dÿ0d‰ ‹EP‹Eø‹Uüè    YÙá‹Eü@‰EôÛEôŞÙßà‚÷   Uğ‹E‹@‹@ü‹€   è    ‹Eğè    Ød  ßà‚É   ‹uüFN…ö|,F‹]øƒÃß+Ø5h  è    ‰Eè‰UìßmèØh  ß;›ƒÃ NuÛUè    Y‹EßhŞÙßàv7‹uüFN…ö|wF‹]øƒÃß+Øh  ß;›Uè    Y‹EßhŞÙßàvQƒÃ NuÛëIUè    Y‹EßhŞÙßàs5‹uüFN…ö|,F‹]øƒÃß+Ø%h  ß;›Uè    Y‹EßhŞÙßàsƒÃ NuÛ3ÀZYYd‰h]  Eğè    Ãé    ëğ_^[‹å]Ã $tI @F   .6        ÿÿÿÿ    GoodsUU‹ìƒÄĞSVW3À‰EĞ‰EÔ‰EØ‰EÜ‰Eà‰Eü3ÀUh¬  dÿ0d‰ Uà‹E‹@ü‹€   è    ‹Eàè    ß}è›ßmßmèŞùØ¼  ß}ğ›‹E‹@ü‹€  ‹€L  ƒèPEü¹   ‹    è    ƒÄ‹E‹@ü‹€  ‹°L  ƒî…ö”   ‰uä»   EÜP‹E‹@ü‹€  ‹Ëº   è    ‹EÜè    ØÀ  ßmèŞùØ¼  ‹óÁæ‹Eüß|ğè›‹Eü‰\ğàEØP‹E‹@ü‹€  ‹Ëº   è    ‹EØè    ‹Eüß|ğğ›‹Eü3Ò‰Tğø‰TğüCÿMä…tÿÿÿ‹Eüè    ‹Ğ‹Eüè    ßmğØ5¼  ƒÄøİ$›‹Eüè    ‹Ğ‹Eüè    U‹Eüè    ‹Ğ‹Eüè    YU‹Eüè    ‹Ğ‹Eüè    YØÄ  ßàu~‹E‹@ü‹€  ‹€L  ƒè…À~e‰Eä»   ‹Eüè    ‹øO…ÿ|HG3ö‹ÆÁà‹Uü;Âu4‹ÆÁà‹UüÿtÂÿtÂEÔè    ‹EÔP‹E‹@ü‹€  ‹Ëº   è    FOu»CÿMäu£¡    ‹°  ‹†L  ƒø~Fƒè…À~?‰Eä»   SEĞP‹Ëº   ‹Æè    ‹EĞP¡    ‹  ¹   ¡    è    CÿMäuÉ3ÀZYYd‰h³  EĞº   è    Eàè    Eü‹    è    Ãé    ëÕ_^[‹å]Â  @F  ÈB    U‹ì¹   j j IuùSV‰Eü]üuğ3ÀUh¤  dÿ0d‰ Uì‹‹€   è    Uè¡    ‹ ‹€Œ  ‹ÿQ`Eèº¼  è    ‹EèPhØ  Uà‹‹€   è    ÿuàhğ  Eäº   è    ‹UäMìXè    „À„„  ‹‹€À  ‹Uìè    UÜ‹‹€À  è    ‹EÜ‹Öè    „À„ZÿÿÿUØ‹‹€   è    ‹EØè    Û-ô  ŞÉß.ŞÙßà†ö   j h  EĞP‰uÈÆEÌUÈ3É¸   è    ÿuĞh,  UÄ‹‹€   è    ÿuÄh@  EÀPU¬‹‹€   è    ‹E¬è    ß.ŞéØ5H  ÙáÛ} ›E ‰E°ÆE´Uœ‹‹€   è    ‹Eœè    ƒÄøß<$›ÿvÿ6è    Ùáè    ‰EÈ‰UÌEÈ‰E¸ÆE¼U°¹   ¸T  è    ÿuÀhh  EÔº   è    ‹EÔf‹l  3Òè    H…7şÿÿU˜‹‹€   è    ‹E˜è    Û-p  ŞÉß.ŞÙßàƒö   j h  EP‰uÈÆEÌUÈ3É¸   è    ÿuh„  UŒ‹‹€   è    ÿuŒh@  EˆPU„‹‹€   è    ‹E„è    ß.ŞéØ5H  ÙáÛ} ›E ‰E°ÆE´U€‹‹€   è    ‹E€è    ƒÄøß<$›ÿvÿ6è    Ùáè    ‰EÈ‰UÌEÈ‰E¸ÆE¼U°¹   ¸˜  è    ÿuˆhh  E”º   è    ‹E”f‹l  3Òè    H…ıÿÿUÿvÿ6è    Y3ÀZYYd‰h«  E€º   è    Eˆè    EŒè    Eº   è    E˜º   è    E¬è    EÀè    EÄè    EĞº   è    EØº   è    Eäº   è    Ãé    ë‚^[‹å]Ã   ÿÿÿÿ   , ââåäèòå ñóììó:    ÿÿÿÿ   Öåíà òîâàğà:    ÿÿÿÿ   ãğ. 
+×£p=
+×ƒÿ?  ÿÿÿÿ   Âû ïğåäëàãàåòå  ÿÿÿÿ   %m  ÿÿÿÿ    áîëüøå îò  ÿÿÿÿ   ğ. íà:   @Fÿÿÿÿ   %m,  (%d    ÿÿÿÿ   %)     ìQ¸…ëQøş?  ÿÿÿÿ    ìåíüøå îò  ÿÿÿÿ   %m, (%d €¸  t²è    Ã€¸   t3Òè    ÃU‹ì‹À  €º
+  t	‹Â²è    Æ    ]Â S‹Ø‹ƒÌ  è    ƒÄøİ$›¡    ‹ ‹€<  ‹ÿ’    [ÃU‹ìƒÄäS3É‰Mè‰Mä‰Mø‹Ø3ÀUhJ  dÿ0d‰ 3À‰ƒL  ÆEÿMÿ‹Ãè    ‹ƒx  ‹€  3Òè    ƒx „Ò   ‹ƒx  ‹€  º   è    ƒx „²   ‹ƒx  ‹€  3Òè    ‹@Uøè    ‹Eøº`  è    „   ‹ƒÌ  è    è    Û}ì›è    ÛmìŞÙßàtTj hp  ‹ƒÌ  è    ƒÄøİ$›Eäè    ÿuähœ  h¨  h´  Eèº   è    ‹Eèf‹Ì  ²è    Hu
+ÇƒL     3ÀZYYd‰hQ  Eäº   è    Eøè    Ãé    ëã[‹å]Ã  ÿÿÿÿ   error   ÿÿÿÿ    Âû ïîäòâåğæäàåòå âûáğàííóş äàòó     ÿÿÿÿ    ?  ÿÿÿÿ   
+  ÿÿÿÿ   åñëè "äà" íàæìèòå Ok       ¡    ‹ 3Ò‰   ‰  ÃU‹ìƒÄÔSVW3Û‰]Ô‰]Ü‰]Ø‹Ù‹ğ3ÀUh  dÿ0d‰ €;,u	¡    Š ˆ€;.u	¡    Š ˆV¾$  }à¹   ó¥^¡    Š %ÿ   «EàŠ%ÿ   £EàsvŠ‹    :u/UÜ‹†Ô  è    ‹EÜPEØ‹    Šè    ‹EØZè    …À;€;-uUÔ‹†Ô  è    ‹UÔ¸L  è    …À€;-u‹†Ô  ‹ÿ’Ğ   …Àt
+Æ j è    3ÀZYYd‰h  EÔè    EØè    EÜè    Ãé    ëà_^[‹å]Ã !    ÿ                        ÿÿÿÿ   -   è    ƒ=     tT¡    €¸.   tF¡    ƒ8 t<€=    u3¡    ‹P@¡    ‹ è    ¡    ‹PD¡    ‹ +PLJ¡    ‹ è    ÃU‹ìƒÄôSVW3Ò‰Uô‰Eü‹Eüè    3ÀUh   dÿ0d‰ ÆEû ‹E‹@ü‹¸  ‹ŸL  ƒë…Û~.¾   EôP‹Îº   ‹Çè    ‹Eô‹Uüè    uÆEûëFKu×3ÀZYYd‰h—   Eôè    Eüè    Ãé    ëèŠEû_^[‹å]ÃU‹ìj j j j j SVW‹ñ‰Eü‹}3ÀUh  dÿ0d‰ UUø‹Eü‹€l  ‹ÿQ`‹Eøè    Y„À„§   ‹Eü‹€ø  ‹˜  º€€€ ‹Cè    ‹Ö‹Ãè    ºÿÿÿ ‹Cè    ‹Çè    €x@u'‹Çè    Uôè    ‹EôP‹NƒÁ‹ƒÂ‹Ãè    ëA‹Çè    Uğè    ‹EğP‹Çè    Uìè    ‹Uì‹Ãè    ‹V+Ğƒê‹NƒÁ‹Ãè    3ÀZYYd‰h  Eìº   è    Ãé    ëë_^[‹å]Â Æ     Æ     Š€êt€êt€êt€êtëÆ    ëÆ    3Òè    Ã‹€  è    ÃU‹ì3ÀUh%   dÿ0d‰ ÿ    3ÀZYYd‰h,   Ãé    ëø]Ãƒ-    ÃmA   ¢¡y}Ä…Âi®¥¸º©í‘•™Àyu}Í™¥ÑÕÙİáåéñõùµı¹½ÁÉmqÎ…ª‰‘•¡e­±ÅÒ¤¨¦°ĞÔÖ¬²´¶¼¾}    ¡y}…	i¥©í‘•™)y}Í™¥ÑÕÙİáåéñõùµı¹½ÁÉq…‰‘•¡e%±Å!ı		
+  "  !É¡-1}9…)iİ¥õùí•!yu}Í™í¥ÑÕñİáåé	ùı¹½ÁÉMÍÑÕÙ‰á•¡ı­±=QUåé%5AEI‘YÁ:õ,9,IB]2iB}L‘J©FÍHéB		(%	JU	0å	.
+6-
+(=
+"M
+Y
+.‰
+D©
+8¹
+2i
+Ü‚’xd9]aeifZh
+„! !ÅI0Imq2u,I¥©Y8Y
+±y$Ş
+Yà
+Yà
+Yà
+Yà
+Yà
+Yà
+Yà
+Yà
+Yà
+Yà
+Yà
+Yà
+YàââââââY"	Y
+Á Õ($$2m*YÙ(&İ>ÉmY"m(m<YY
+™
+m0(m4&m.m*Ym0á(m8İDÉmY*YY
+™
+
+m(m*m8*0m*m>j1YY*YYYYYY)1"Y
+Á-.mD)1"Y
+Á-.mD) 51"Y
+Á-
+mN)e
+!]]Y
+]91"Y
+Á-.m6U	"Y
+Á Í8ÑåmHÑåm6]1"-)1"Y
+Á-.m.Y
+­"m0:m0"m0<m*]$õ9Y½©Y¥¥¥­Å É¥¥¥¥¥¥¥¥­ÅéÉ­Å©q})-,)-ä
+‰ ‰  ‰Ü¡y}…êiô¥©í‘•™èyu}Í™¥ÑÕÙİáåéñõùµı¹½ÁÉmqÎ…‰‘•¡e­±ÅÒîğòæìÔÖ( *‰Ø‘*Ñ‘röÕ0‘¥¥© ¥6Ñ¥nöÕ$ö(¥É¥© Á2Á,¥)<Áq$Áq$Áq*¥İíå1<¥Á
+Á
+±&B8BÁ2Á¥
+Á	DÁáÁ
+±&BÁ$BHÁ
+­1Áq*¥İÁq"ñÁq ‘Bö	*à
+ÁqNöİõù$*à
+ÁqNöİõ8ö!ÁÙõ2İıù$*àÁqDà 	4à	4à
+Áq$Áq,ÁJDÁÁ>Á>ÁTá4à
+ÁqJà
+Áq@Ùõ2İõù$4à\à
+ÁqHİõ*ÙõBö!ÁÙõ2İıù$4àÁå%4àÁq,ÁJDÁJDÁ>Á>ÁTá4à
+ÁqJà
+ÁqXö!ÁÙõ2İıù$4à
+ÁqJà
+ÁqJà
+ÁqJà
+ÁqJàø->Áq,‘"Áq&Áq6¥<ö	*à
+ÁqNöİõù$*à
+ÁqNöİõ8ö!ÁÙõ2İıù$*àÁq6¥RàBÁq6¥ÁÁ
+™=Á Éé¥é¥­Å É­Å Éé¥­Å Éé¥­Å É­Å Éé¥é¥­Å É­Å Éé¥éÉ

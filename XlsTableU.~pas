@@ -1,0 +1,639 @@
+unit XlsTableU;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
+  Dialogs, Grids, StdCtrls, Buttons, ExtCtrls, ActnList, StdActns, Menus, ShellAPI,
+  DBCtrls, Mask, ComCtrls, AppEvnts;
+
+type
+  THImp = (hImpNumber, hImpArticul, hImpGoods, hImpWidth, hImpLength,
+      hColor, hImageCode, hFirm,
+      hImpUnit, hImpCount, hImpPriceSquM, hImpPrice, hImpMadeIn, hImpType,
+      hImpTypeS, hImpSize);
+
+  TStringGrid = class(Grids.TStringGrid)
+  end;
+
+  TfmXlsTable = class(TForm)
+    strngrdGOODS_IMPORT: TStringGrid;
+    pnl1: TPanel;
+    btnOk: TBitBtn;
+    btn2: TBitBtn;
+    actlst1: TActionList;
+    dlgOpen1: TOpenDialog;
+    btnOpenTable: TSpeedButton;
+    actOpenFile: TAction;
+    mm1: TMainMenu;
+    mniFile1: TMenuItem;
+    mniOpen1: TMenuItem;
+    edtLoadFile: TEdit;
+    lbl1: TLabel;
+    actDelColRow: TAction;
+    pm1: TPopupMenu;
+    mniDelCol: TMenuItem;
+    mniDelRow: TMenuItem;
+    pnl2: TPanel;
+    dblkcbbCRespons: TDBLookupComboBox;
+    lbl2: TLabel;
+    lbl3: TLabel;
+    dtpCDate: TDateTimePicker;
+    dblkcbbCPartner: TDBLookupComboBox;
+    lbl4: TLabel;
+    dblkcbbRespPartner: TDBLookupComboBox;
+    lbl5: TLabel;
+    txtCarpet: TStaticText;
+    txtTrack: TStaticText;
+    txtElse: TStaticText;
+    txtPicture: TStaticText;
+    txtMetal: TStaticText;
+    aplctnvnts1: TApplicationEvents;
+    statImp: TStatusBar;
+    txtSqTrack: TStaticText;
+    txtSUM_PRICE: TStaticText;
+    dblkcbbCAddrPartner: TDBLookupComboBox;
+    procedure actOpenFileExecute(Sender: TObject);
+    procedure edtLoadFileKeyPress(Sender: TObject; var Key: Char);
+    procedure FormCreate(Sender: TObject);
+    procedure InitHead;
+    procedure sgIMP_DelRow(Top, Bottom: Integer);
+    procedure sgIMP_DelCol(Left, Right: Integer);
+    procedure strngrdGOODS_IMPORTKeyDown(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
+    procedure OpenFile(const s: string);
+    procedure mniDelColClick(Sender: TObject);
+    procedure mniDelRowClick(Sender: TObject);
+    procedure FormShow(Sender: TObject);
+    procedure dtpCDateChange(Sender: TObject);
+    procedure btnOkClick(Sender: TObject);
+    function TestGoodsImport(): Boolean;
+    procedure ToCorrect;
+    procedure lbl2Click(Sender: TObject);
+    procedure aplctnvnts1Idle(Sender: TObject; var Done: Boolean);
+    procedure FormHide(Sender: TObject);
+    function sgMadeInStrToInt(iRow: Integer; iCol: Integer = Integer(hImpMadeIn)): Variant;
+    function sgTypeGoodsIntToStr(iRow: Integer; iCol: Integer = Integer(hImpType)): Variant;
+  private
+    { Private declarations }
+    procedure WMDropFiles (var Msg: TMessage); message wm_DropFiles;
+  public
+    { Public declarations }
+  end;
+
+var
+  fmXlsTable: TfmXlsTable;
+
+
+implementation
+
+uses AutoBot1U, dmCheque;
+
+{$R *.dfm}
+
+var
+  ifTested,
+  ifFindMadeIn,
+  ifFindTypeGoods: Boolean;
+
+{ TfmXlsTable }
+
+procedure TfmXlsTable.actOpenFileExecute(Sender: TObject);
+begin
+  if not dlgOpen1.Execute then
+    Exit;
+  OpenFile(dlgOpen1.FileName);
+end;
+
+procedure TfmXlsTable.edtLoadFileKeyPress(Sender: TObject; var Key: Char);
+begin
+  case Key of
+    #13: OpenFile(edtLoadFile.Text);
+  end;
+end;
+
+procedure TfmXlsTable.FormCreate(Sender: TObject);
+begin
+  InitHead;
+  DragAcceptFiles(Handle, True);
+  Application.OnIdle := nil;
+end;
+
+procedure TfmXlsTable.InitHead;
+  {№	Артикул	Товар			Ширина	Длина	Ед.	Кол.	Розн.цена, кв.м	цена за шт}
+var
+  I: Integer;
+begin
+  with strngrdGOODS_IMPORT do
+    begin
+      if ColCount < Integer(hImpSize) then
+        ColCount := Integer(hImpSize);
+      Cells[Integer(hImpNumber), 0] := '№';
+      Cells[Integer(hImpArticul), 0] := 'Артикул';
+      Cells[Integer(hImpGoods), 0] := 'Наименование товара';
+      Cells[Integer(hImpWidth), 0] := 'Ширина';
+      Cells[Integer(hImpLength), 0] := 'Длина';
+      Cells[Integer(hImpUnit), 0] := 'Ед.';
+      Cells[Integer(hImpCount), 0] := 'Кол-во';
+      Cells[Integer(hImpPriceSquM), 0] := 'м.кв. грн.';
+      Cells[Integer(hImpPrice), 0] := 'Цена грн.';
+      Cells[Integer(hImpType), 0] := 'Тип';
+      Cells[Integer(hImpTypeS), 0] := 'Тип с.';
+      Cells[Integer(hImpMadeIn), 0] := 'Производ.';
+      Cells[Integer(hColor), 0] := 'Цвет';
+      Cells[Integer(hImageCode), 0] := 'Форма';
+      Cells[Integer(hFirm), 0] := 'Фирма';
+      for I := 0 to ColCount - 1 do
+        AutoSizeGridColumn(strngrdGOODS_IMPORT, I, 20, 150);
+    end;
+end;
+
+procedure TfmXlsTable.sgIMP_DelRow(Top, Bottom: Integer);
+var
+  I,
+  rtmp: Integer;
+begin
+  for I := Top to Bottom do
+    with strngrdGOODS_IMPORT do
+      begin
+        if (I = 0) or (RowCount < 3) then
+          Exit;
+        rtmp := Row;
+        DeleteRow(I);
+        if rtmp >= RowCount - 1 then
+          Row := RowCount - 1
+        else
+          Row := rtmp;
+      end;
+  ifTested := True; // не забываем о изменениях в таблице
+  InitHead
+end;
+
+procedure TfmXlsTable.sgIMP_DelCol(Left, Right: Integer);
+var
+  I,
+  ctmp: Integer;
+begin
+  if strngrdGOODS_IMPORT.ColCount < Integer(hImpSize) + 1 then
+    Exit;
+  for I := Left to Right do
+    with strngrdGOODS_IMPORT do
+      begin
+        ctmp := Col;
+        DeleteColumn(I);
+        if ctmp >= ColCount - 1 then
+          Col := ColCount - 1
+        else
+          Col := ctmp;
+      end;
+  ifTested := True; // не забываем о изменениях в таблице
+  InitHead
+end;
+
+
+procedure TfmXlsTable.strngrdGOODS_IMPORTKeyDown(Sender: TObject;
+  var Key: Word; Shift: TShiftState);
+var
+  dRL,
+  dTB: Integer;
+begin
+  case Key of
+    VK_DELETE: // VK_DELETE
+      with strngrdGOODS_IMPORT, Selection do
+      begin
+        dRL := Abs(Right - Left);
+        dTB := Abs(Bottom - Top);
+        if (dRL = 0) and (dTB = 0) then
+          begin
+            sgIMP_DelRow(Row, Row);
+            Exit;
+          end;
+        if (dTB > 0) then
+          sgIMP_DelRow(Top, Top + dTB);
+
+        if (dRL > 0) and (Abs(ColCount - dRL) > Integer(hImpSize)) then
+          sgIMP_DelCol(Left, Left + dRL);
+      end;
+  end;
+end;
+
+procedure TfmXlsTable.WMDropFiles(var Msg: TMessage);
+var
+  size: integer;
+  Filename: PChar;
+begin
+  inherited;
+  size := DragQueryFile(Msg.WParam, 0, nil, 0) + 1;
+  Filename := StrAlloc(size);
+  DragQueryFile(Msg.WParam, 0, Filename, size);
+  OpenFile(string(Filename));
+  StrDispose(Filename);
+  DragFinish(Msg.WParam);
+end;
+
+procedure TfmXlsTable.OpenFile(const s: string);
+begin
+  if ExtractFileExt(s) <> '.xls' then
+    Exit;
+  edtLoadFile.Text := s;
+  Xls_To_StringGrid(strngrdGOODS_IMPORT, s);
+  DelEmptyRowColFromGrid(strngrdGOODS_IMPORT);
+  ifTested := True; // не забываем о изменениях в таблице
+  InitHead
+end;
+
+procedure TfmXlsTable.mniDelColClick(Sender: TObject);
+begin
+  sgIMP_DelCol(strngrdGOODS_IMPORT.Col, strngrdGOODS_IMPORT.Col);
+end;
+
+procedure TfmXlsTable.mniDelRowClick(Sender: TObject);
+begin
+  sgIMP_DelRow(strngrdGOODS_IMPORT.Row, strngrdGOODS_IMPORT.Row);
+end;
+
+procedure TfmXlsTable.FormShow(Sender: TObject);
+var
+  vResult: Variant;
+begin
+  ifTested := False; // не забываем о изменениях в таблице
+  ifFindMadeIn := False;
+  ifFindTypeGoods := False;
+  with DM do
+  begin
+    vResult := quQuery('SELECT MAX(MrDate) FROM MiniReport WHERE MrAddressPartnerID = ' + IntToStr(Address));
+    if VarIsNull(vResult) then
+      vResult := Date;
+    if vResult + IntervalSale < Date then
+      begin
+        if not tbGraphWork.Locate('GWDate; GWAddress', VarArrayOf([vResult, Address]), []) then
+          Abort;
+        intgrfldChequeCResponsible.Value := intgrfldGraphWorkGWResp.Value;
+      end
+    else
+      intgrfldChequeCResponsible.Value := DefRespons;
+    intgrfldChequeCPartner.Value := 1; //
+    intgrfldChequeCRespPartner.Value := 1;
+    dtpCDate.Date := vResult;
+    ifTested := True;
+  end;
+  Application.OnIdle := aplctnvnts1Idle;
+end;
+
+procedure TfmXlsTable.dtpCDateChange(Sender: TObject);
+var
+  v: Variant;
+begin
+  with DM do
+    begin
+      v := quQuery('SELECT MAX(MrDate) FROM MiniReport WHERE MrAddressPartnerID = ' + IntToStr(Address));
+      if not VarIsNull(v) then
+        begin
+          { TODO : Проверить что возвращает Date или DateTime }
+          if Int(dtpCDate.Date) < v then
+            dtpCDate.Date := v else
+          if Int(dtpCDate.Date) > Date then
+            dtpCDate.Date := Date;
+        end
+      else
+        if Int(dtpCDate.Date) > Date then
+          dtpCDate.Date := Date;
+    end;
+end;
+
+procedure TfmXlsTable.btnOkClick(Sender: TObject);
+var
+  b: Boolean;
+  I: Integer;
+begin
+  b := True;
+  ModalResult := 0;
+
+  aplctnvnts1Idle(Sender, b);
+
+  if TestGoodsImport then
+    ToCorrect
+  else
+    Abort;
+  if not TestGoodsImport then
+    Abort;
+  with strngrdGOODS_IMPORT do
+  for I := 1 to RowCount - 1 do
+    if VarIsNull(sgMadeInStrToInt(I)) then
+      begin
+        FocusCell(Integer(hImpMadeIn), I, True);
+        ifFindMadeIn := True;
+        Beep;
+        Exit;
+      end;
+  if statImp.Panels.Items[0].Text = '' then
+    Exit;
+  Sleep(2000);
+  ModalResult := 1;
+end;
+
+{ hImpNumber = 0; hImpArticul = 1; hImpGoods = 2; hImpWidth = 3; hImpLength = 4;
+  hImpUnit = 5; hImpCount = 6; hImpPriceSquM = 7; hImpPrice = 8; hImpType = 9;}
+function TfmXlsTable.TestGoodsImport(): Boolean;
+var
+  I, gType: Integer;
+begin
+  Result := False;
+  with strngrdGOODS_IMPORT do
+  for I := 1 to RowCount - 1 do
+    begin
+//      if Cells[Integer(hImpArticul), I] = '' then
+//        begin
+//          FocusCell(Integer(hImpArticul), I, True);
+//          Beep;
+//          Break;
+//        end;
+      if Cells[Integer(hImpGoods), I] = '' then
+        begin
+          FocusCell(Integer(hImpGoods), I, True);
+          Beep;
+          Break;
+        end;
+      //Cells[hImpUnit, I]
+      if not ifHardStrToInt(Cells[Integer(hImpCount), I]) then
+        begin
+          FocusCell(Integer(hImpCount), I, True);
+          Beep;
+          Break;
+        end;
+      if not ifHardStrToFloat(Cells[Integer(hImpPrice), I]) then
+        begin
+          FocusCell(Integer(hImpPrice), I, True);
+          Beep;
+          Break;
+        end;
+      if not ifHardStrToInt(Cells[Integer(hImpType), I], gType) then
+        begin
+          FocusCell(Integer(hImpType), I, True);
+          Beep;
+          Break;
+        end
+      else
+        case cTypeGoods(gType) of
+          tCarpet, tTrack:
+            begin
+              if not ifHardStrToFloat(Cells[Integer(hImpPriceSquM), I]) then
+                begin
+                  FocusCell(Integer(hImpPriceSquM), I, True);
+                  Beep;
+                  Break;
+                end;
+              if not ifHardStrToFloat(Cells[Integer(hImpWidth), I]) then
+                begin
+                  FocusCell(Integer(hImpWidth), I, True);
+                  Beep;
+                  Break;
+                end;
+              if not ifHardStrToFloat(Cells[Integer(hImpLength), I]) then
+                begin
+                  FocusCell(Integer(hImpLength), I, True);
+                  Beep;
+                  Break;
+                end;                
+            end;
+          tElse:
+            begin
+              if not ifHardStrToFloat(Cells[Integer(hImpWidth), I]) then
+                begin
+                  FocusCell(Integer(hImpWidth), I, True);
+                  Beep;
+                  Break;
+                end;
+              if not ifHardStrToFloat(Cells[Integer(hImpLength), I]) then
+                begin
+                  FocusCell(Integer(hImpLength), I, True);
+                  Beep;
+                  Break;
+                end;
+              if Cells[Integer(hImpPriceSquM), I] <> '' then
+                begin
+                  FocusCell(Integer(hImpPriceSquM), I, True);
+                  Beep;
+                  Break;
+                end;
+            end;
+          tPicture, tMetal:
+            begin
+              if Cells[Integer(hImpWidth), I] <> '' then
+                begin
+                  FocusCell(Integer(hImpWidth), I, True);
+                  Beep;
+                  Break;
+                end;
+              if Cells[Integer(hImpLength), I] <> '' then
+                begin
+                  FocusCell(Integer(hImpLength), I, True);
+                  Beep;
+                  Break;
+                end;
+              if Cells[Integer(hImpPriceSquM), I] <> '' then
+                begin
+                  FocusCell(Integer(hImpPriceSquM), I, True);
+                  Beep;
+                  Break;
+                end;                
+            end;  
+        end;
+      if I = RowCount - 1 then
+        Result := True;
+    end;
+end;
+
+procedure TfmXlsTable.ToCorrect;
+var
+  I,
+  itmp: Integer;
+  rtmp: Real;
+begin
+  with strngrdGOODS_IMPORT do
+  for I := 1 to RowCount - 1 do
+    begin
+      if ifHardStrToFloat(Cells[Integer(hImpWidth), I], rtmp) then
+        Cells[Integer(hImpWidth), I] := FloatToStr(rtmp);
+      if ifHardStrToFloat(Cells[Integer(hImpLength), I], rtmp) then
+        Cells[Integer(hImpLength), I] := FloatToStr(rtmp);
+      //Cells[hImpUnit, I]
+      if ifHardStrToInt(Cells[Integer(hImpCount), I], itmp) then
+        Cells[Integer(hImpCount), I] := IntToStr(itmp);
+
+      if ifHardStrToFloat(Cells[Integer(hImpPriceSquM), I], rtmp) then
+        Cells[Integer(hImpPriceSquM), I] := FloatToStr(rtmp);
+      if ifHardStrToFloat(Cells[Integer(hImpPrice), I], rtmp) then
+        Cells[Integer(hImpPrice), I] := FloatToStr(rtmp);
+      if ifHardStrToInt(Cells[Integer(hImpType), I], itmp) then
+        begin
+          Cells[Integer(hImpType), I] := IntToStr(itmp);
+          case cTypeGoods(itmp) of
+            tCarpet: Cells[Integer(hImpTypeS), I] := 'Ковры';
+            tElse: Cells[Integer(hImpTypeS), I] := 'Разное';
+            tTrack: Cells[Integer(hImpTypeS), I] := 'Дорожки';
+            tPicture: Cells[Integer(hImpTypeS), I] := 'Картины';
+            tMetal: Cells[Integer(hImpTypeS), I] := 'Метал';
+          end;
+        end;
+    end;
+end;
+
+procedure TfmXlsTable.lbl2Click(Sender: TObject);
+begin
+  if TestGoodsImport then
+    ToCorrect
+end;
+
+procedure TfmXlsTable.aplctnvnts1Idle(Sender: TObject; var Done: Boolean);
+var
+  gType, I, iCount,
+  sCarpet, sElse, sTrack, sPicture, sMetal: Integer;
+  sSqTrack,
+  rWidth,
+  rLength,
+  rPrice: Real;
+  SUM_PRICE: Currency;
+  s1,
+  s2: string;
+  vResult: Variant;
+begin
+  s1 := '';
+  s2 := '';
+  if ifTested then
+    begin
+      if TestGoodsImport then
+        begin
+          sCarpet := 0;
+          sElse := 0;
+          sTrack := 0;
+          sPicture := 0;
+          sMetal := 0;
+          sSqTrack := 0;
+          SUM_PRICE := 0;
+          with strngrdGOODS_IMPORT do
+          for I := 1 to RowCount - 1 do
+            begin
+              if ifFindMadeIn then { TODO -cTEST : самый сложный момент ifFindMadeIn }
+                if VarIsNull(sgMadeInStrToInt(I)) then
+                  begin
+                    ifTested := False;
+                    statImp.Panels.Items[0].Text := 'Производитель не найден';
+                    statImp.Panels.Items[1].Text := '';
+                    FocusCell(Integer(hImpMadeIn), I, True);
+                    Sleep(2000);
+                    Beep;
+                    Exit;
+                  end;
+              if ifFindTypeGoods then
+                begin
+                  vResult := sgTypeGoodsIntToStr(I);
+                  if VarIsNull(vResult) then
+                    begin
+                      ifTested := False;
+                      statImp.Panels.Items[0].Text := 'Производитель не найден';
+                      statImp.Panels.Items[1].Text := '';
+                      FocusCell(Integer(hImpType), I, True);
+                      Sleep(2000);
+                      Beep;
+                      Exit;
+                    end
+                  else
+                    Cells[Integer(hImpTypeS), I] := vResult;
+                end;
+
+
+              ifHardStrToFloat(Cells[Integer(hImpWidth), I], rWidth);
+              ifHardStrToFloat(Cells[Integer(hImpLength), I], rLength);
+              ifHardStrToInt(Cells[Integer(hImpCount), I], iCount);
+              ifHardStrToInt(Cells[Integer(hImpType), I], gType);
+              case cTypeGoods(gType) of
+                tCarpet: sCarpet := sCarpet + iCount;
+                tElse: sElse := sElse + iCount;
+                tTrack:
+                  begin
+                    sSqTrack := sSqTrack + rWidth * rLength; // м.кв.
+                    Inc(sTrack);
+                  end;
+                tPicture: sPicture := sPicture + iCount;
+                tMetal: sMetal := sMetal + iCount;
+              end;
+              ifHardStrToFloat(Cells[Integer(hImpPrice), I], rPrice);
+              case cTypeGoods(gType) of
+                tTrack:
+                  SUM_PRICE := SUM_PRICE + rPrice * rLength;
+              else
+                SUM_PRICE := SUM_PRICE + rPrice * iCount;
+              end;
+            end;
+
+          if ifFindMadeIn and ifFindTypeGoods then
+            strngrdGOODS_IMPORT.ColWidths[Integer(hImpType)] := 0;
+          // что бы не задействовать ф-ю sgMadeInStrToInt
+          ifFindMadeIn := False;
+          ifFindTypeGoods := False;
+
+          if sCarpet <> 0 then
+            s2 := s2 + 'Ковров: ' + IntToStr(sCarpet) + ' шт.; ';
+          if sElse <> 0 then
+            s2 := s2 + 'Разного: ' + IntToStr(sElse) + ' шт.; ';
+          if sTrack <> 0 then
+            s2 := s2 + 'Дорожек: ' + IntToStr(sTrack) + ' рул. ' +
+              FloatToStr(sSqTrack) + ' м.кв.; ';
+          if sPicture <> 0 then
+            s2 := s2 + 'Картин: ' + IntToStr(sPicture) + ' шт.; ';
+          if sMetal <> 0 then
+            s2 := s2 + 'Металл: ' + IntToStr(sMetal) + ' шт.';
+
+          if s2 <> statImp.Panels.Items[1].Text then
+            statImp.Panels.Items[1].Text := s2;
+
+          s1 := 'На сумму ' + CurrToStr(SUM_PRICE) + ' грн.';
+          if statImp.Panels.Items[0].Text <> s1 then
+            statImp.Panels.Items[0].Text := s1;
+
+          txtCarpet.Caption := IntToStr(sCarpet);
+          txtTrack.Caption := IntToStr(sTrack);
+          txtElse.Caption := IntToStr(sElse);
+          txtPicture.Caption := IntToStr(sPicture);
+          txtMetal.Caption := IntToStr(sMetal);
+          txtSqTrack.Caption := FloatToStr(sSqTrack);
+          txtSUM_PRICE.Caption := CurrToStr(SUM_PRICE);
+        end
+      else
+        begin
+          ifFindMadeIn := True;
+          ifFindTypeGoods := True;
+          ifTested := False
+        end;
+
+    end
+  else
+    begin
+      statImp.Panels.Items[0].Text := '';
+      statImp.Panels.Items[1].Text := '';
+    end;    
+end;
+
+procedure TfmXlsTable.FormHide(Sender: TObject);
+begin
+  Application.OnIdle := nil;
+end;
+
+
+
+function TfmXlsTable.sgMadeInStrToInt(iRow, iCol: Integer): Variant;
+begin
+  with DM do
+    Result := quQuery('SELECT ProducerGoodsID FROM ProducerGoods WHERE UPPER (ProducerGoods) = UPPER("' +
+        strngrdGOODS_IMPORT.Cells[iCol, iRow]  + '")')
+end;
+
+function TfmXlsTable.sgTypeGoodsIntToStr(iRow, iCol: Integer): Variant;
+begin
+  with DM do
+    Result := quQuery('SELECT TGoods FROM TypeGoods WHERE TypeGoodsID = ' +
+        strngrdGOODS_IMPORT.Cells[iCol, iRow])
+end;
+
+end.
